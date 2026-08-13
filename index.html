@@ -1,5 +1,199 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Cicilan Emas - Pembeliaset.id</title>
+    <style>
+        * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { margin: 0; padding: 20px; background-color: #f0f2f5; color: #333; position: relative; min-height: 100vh; }
+        .container { max-width: 1200px; margin: auto; position: relative; z-index: 1; }
+        
+        .watermark { position: fixed; bottom: 20px; right: 20px; opacity: 0.25; pointer-events: none; z-index: 9999; width: 260px; }
+        .watermark svg { width: 100%; height: auto; }
+
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; background: #fff; padding: 15px 20px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        .header h1 { margin: 0; color: #d4af37; font-size: 24px; }
+        .status-cloud { font-size: 12px; padding: 4px 10px; border-radius: 12px; background: #27ae60; color: white; font-weight: bold; }
+
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 15px; margin-bottom: 25px; }
+        .card-stat { background: #fff; padding: 20px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); border-left: 5px solid #d4af37; }
+        .card-stat h3 { margin: 0 0 8px 0; font-size: 13px; color: #666; text-transform: uppercase; }
+        .card-stat .value { font-size: 20px; font-weight: bold; color: #2c3e50; }
+        
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 25px; }
+        .card { background: #fff; padding: 20px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        .card h2 { margin-top: 0; color: #2c3e50; font-size: 18px; border-bottom: 2px solid #f0f2f5; padding-bottom: 10px; }
+        
+        .form-group { margin-bottom: 12px; }
+        label { display: block; font-weight: 600; font-size: 13px; margin-bottom: 4px; }
+        input, select { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 6px; font-size: 14px; }
+        button { background: #d4af37; color: white; border: none; padding: 10px 15px; cursor: pointer; border-radius: 6px; font-weight: bold; width: 100%; transition: 0.2s; }
+        button:hover { background: #b8952d; }
+        
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 10000; justify-content: center; align-items: center; }
+        .modal-content { background: #fff; padding: 25px; border-radius: 10px; width: 400px; max-width: 90%; box-shadow: 0 5px 15px rgba(0,0,0,0.3); }
+        .modal-content h3 { margin-top: 0; color: #d4af37; border-bottom: 2px solid #f0f2f5; padding-bottom: 10px; }
+        .modal-actions { display: flex; gap: 10px; margin-top: 20px; }
+        .btn-cancel { background: #95a5a6; }
+
+        .tarik-data-box { background: #eef2f7; border: 1px dashed #b8c7d9; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
+        .btn-group { display: flex; gap: 10px; flex-wrap: wrap; }
+        .btn-sec { background: #4a5568; width: auto; }
+        .btn-excel { background: #27ae60; width: auto; }
+        
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; }
+        th, td { border: 1px solid #e2e8f0; padding: 10px; text-align: left; }
+        th { background: #f7fafc; color: #4a5568; font-weight: 600; }
+        .action-buttons { display: flex; gap: 5px; flex-wrap: wrap; }
+        .btn-sm { padding: 5px 10px; font-size: 11px; width: auto; border-radius: 4px; }
+        .btn-edit { background: #2980b9; } 
+        .btn-del { background: #e74c3c; }
+        
+        .badge { padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 11px; }
+        .badge-lunas { background: #c6f6d5; color: #22543d; }
+        .badge-mencicil { background: #feebc8; color: #744210; }
+        .badge-jt { background: #fed7d7; color: #742a2a; }
+
+        @media (max-width: 768px) { .grid { grid-template-columns: 1fr; } .watermark { width: 160px; } }
+    </style>
+</head>
+<body>
+
+<div class="watermark">
+    <svg viewBox="0 0 380 90" xmlns="http://www.w3.org/2000/svg">
+        <g transform="translate(10, 10)">
+            <path d="M 45 10 C 25 10 10 25 10 45 C 10 65 25 80 45 80 C 55 80 64 76 71 69 L 55 53 C 52 56 49 58 45 58 C 38 58 32 52 32 45 C 32 38 38 32 45 32 C 51 32 56 36 57 42 L 78 42 C 77 24 63 10 45 10 Z" fill="#e51c24"/>
+            <path d="M 25 62 L 68 18 L 78 28 L 35 72 Z" fill="#e51c24"/>
+            <circle cx="20" cy="67" r="4" fill="#e51c24"/>
+            <text x="85" y="48" font-family="'Segoe UI', Arial, sans-serif" font-weight="900" font-size="28" fill="#1a1a1a">pembeli<tspan fill="#e51c24">aset</tspan>.id</text>
+            <text x="87" y="66" font-family="'Segoe UI', Arial, sans-serif" font-style="italic" font-weight="600" font-size="11" fill="#444">Beli Aset ya di Pembeli Aset</text>
+        </g>
+    </svg>
+</div>
+
+<div class="container">
+    <div class="header">
+        <h1>✨ Dashboard Cicilan Emas (Cloud Database)</h1>
+        <div>
+            <span class="status-cloud" id="statusCloud">☁️ Syncing Cloud...</span>
+            <span id="clock" style="font-size: 13px; color: #718096; margin-left: 10px;"></span>
+        </div>
+    </div>
+
+    <!-- Metrik Statistik -->
+    <div class="stats-grid">
+        <div class="card-stat">
+            <h3>Total Peserta Cicilan</h3>
+            <div class="value" id="statNasabah">0 Peserta</div>
+        </div>
+        <div class="card-stat" style="border-left-color: #27ae60;">
+            <h3>Sisa Total Cicilan Berjalan</h3>
+            <div class="value" id="statPiutang">Rp 0</div>
+        </div>
+        <div class="card-stat" style="border-left-color: #2980b9;">
+            <h3>Total Kas Iuran Terkumpul</h3>
+            <div class="value" id="statKas">Rp 0</div>
+        </div>
+        <div class="card-stat" style="border-left-color: #e74c3c;">
+            <h3>Tagihan Bulan Ini Menunggak</h3>
+            <div class="value" id="statMacet">0 Tagihan</div>
+        </div>
+    </div>
+
+    <!-- Menu Tarik Data -->
+    <div class="card tarik-data-box">
+        <h2 style="border: none; padding: 0; margin-bottom: 10px;">📥 Menu Tarik Data & Cadangan System</h2>
+        <div class="btn-group">
+            <button class="btn-excel" onclick="eksporExcel()">📊 Tarik Laporan Cicilan ke Excel (Rapi)</button>
+            <button class="btn-sec" onclick="eksporBackupJSON()">💾 Backup Seluruh System (JSON)</button>
+            <button class="btn-sec" onclick="document.getElementById('fileImport').click()">📤 Impor / Restore Data</button>
+            <input type="file" id="fileImport" accept=".json" style="display: none;" onchange="imporBackupJSON(event)">
+        </div>
+    </div>
+
+    <!-- Form Operasional Grid -->
+    <div class="grid">
+        <div class="card">
+            <h2>➕ Kontrak Cicilan Baru</h2>
+            <div class="form-group"><label>Nama Peserta</label><input type="text" id="nama" placeholder="Contoh: Budi Santoso"></div>
+            <div class="form-group"><label>Berat Emas (Gram)</label><input type="number" id="berat" placeholder="Contoh: 10"></div>
+            <div class="form-group"><label>Total Harga Emas (Rp)</label><input type="number" id="total" placeholder="Contoh: 12000000"></div>
+            <div class="form-group"><label>Uang Muka / DP (Rp)</label><input type="number" id="dp" value="0" placeholder="Kosongkan jika 0"></div>
+            <div class="form-group">
+                <label>Pilihan Jangka Waktu Cicilan (Tenor)</label>
+                <select id="tenor">
+                    <option value="3">3 Bulan</option>
+                    <option value="6">6 Bulan</option>
+                    <option value="12" selected>12 Bulan (1 Tahun)</option>
+                    <option value="18">18 Bulan</option>
+                    <option value="24">24 Bulan (2 Tahun)</option>
+                </select>
+            </div>
+            <div class="form-group"><label>Tanggal Iuran Pertama (Bulan Ke-1)</label><input type="date" id="tglAwal"></div>
+            <button onclick="tambahNasabah()">Buat Kontrak Cicilan (Simpan Cloud)</button>
+        </div>
+
+        <div class="card">
+            <h2>💳 Input Pembayaran Iuran & Dokumen Akad</h2>
+            <div class="form-group">
+                <label>Pilih Peserta Cicilan</label>
+                <select id="selectNasabah" onchange="pilihNasabah()"><option value="">-- Pilih Peserta --</option></select>
+            </div>
+            <div id="infoIuranBox" style="background:#f7fafc; padding:10px; border-radius:6px; margin-bottom:10px; display:none;">
+                <small>Nilai Iuran Flat Per Bulan (<span id="lblTenorAktif">12 Bln</span>): <b id="lblIuranFlat" style="color:#d4af37;">Rp 0</b></small>
+            </div>
+            <div class="form-group"><label>Bayar Iuran Bulanan (Rp)</label><input type="number" id="bayar" placeholder="Masukkan nominal iuran"></div>
+            <button onclick="bayarCicilan()">Catat Pembayaran Iuran</button>
+
+            <hr style="margin: 20px 0; border: none; border-top: 1px solid #e2e8f0;">
+
+            <div class="form-group">
+                <label>Upload File Akad / KTP / Struk Transfer (Max 2MB)</label>
+                <input type="file" id="fileDokumen" accept="image/*,application/pdf">
+            </div>
+            <button onclick="unggahDokumen()" style="background: #2980b9;">Unggah Dokumen Digital</button>
+        </div>
+    </div>
+
+    <div class="card" style="margin-bottom: 25px;">
+        <h2>📋 Monitoring Peserta & Status Cicilan</h2>
+        <div style="overflow-x: auto;">
+            <table>
+                <thead>
+                    <tr><th>ID</th><th>Nama Peserta</th><th>Gram</th><th>Total Harga</th><th>DP</th><th>Tenor</th><th>Iuran Flat / Bln</th><th>Sisa Tagihan</th><th>Progres</th><th>Aksi</th></tr>
+                </thead>
+                <tbody id="tabelNasabah"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="card" id="boxJadwal" style="margin-bottom: 25px; display:none;">
+        <h2 id="judulJadwal">📅 Rincian Jadwal Bulan Iuran Kedepan</h2>
+        <div style="overflow-x: auto;">
+            <table>
+                <thead>
+                    <tr><th>Bulan Ke-</th><th>Tanggal Jatuh Tempo Iuran</th><th>Nominal Iuran Flat</th><th>Status Iuran</th></tr>
+                </thead>
+                <tbody id="tabelJadwal"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>📂 Arsip Dokumen Akad Digital</h2>
+        <div style="overflow-x: auto;">
+            <table>
+                <thead>
+                    <tr><th>Nama Peserta</th><th>Nama Berkas Dokumen</th><th>Aksi Data</th></tr>
+                </thead>
+                <tbody id="tabelDokumen"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
 <script>
-    // URL Google Apps Script Anda
     const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxtrhQ9QSzggy-aSLhL_iI6hFx12O1V2EzrjSTIg4lsivzkq-iiswcqU9YCuPMe4kYV2g/exec";
 
     let nasabahList = [];
@@ -12,7 +206,6 @@
     }, 1000);
 
     function formatRp(num) { return "Rp " + Number(num).toLocaleString('id-ID'); }
-    function tutupModal(id) { document.getElementById(id).style.display = 'none'; }
     function hitungTglBulan(tglStr, bulanKe) { 
         if(!tglStr) return "-";
         let d = new Date(tglStr); 
@@ -20,17 +213,11 @@
         return d.toISOString().split('T')[0]; 
     }
 
-    // FUNGSI UTAMA: Ambil Data Dari Google Sheets Cloud
     function muatDataCloud() {
         const statusEl = document.getElementById('statusCloud');
         if (statusEl) {
             statusEl.innerText = "🔄 Memuat Data Cloud...";
             statusEl.style.background = "#f39c12";
-        }
-
-        if (!SCRIPT_URL || SCRIPT_URL.includes("GANTI_DENGAN_URL")) {
-            alert("URL Apps Script belum dipasang di kode HTML!");
-            return;
         }
 
         fetch(SCRIPT_URL)
@@ -278,3 +465,5 @@
 
     window.onload = muatDataCloud;
 </script>
+</body>
+</html>
