@@ -75,7 +75,7 @@
 <!-- Modal Dialog Edit Peserta -->
 <div class="modal" id="modalEditNasabah">
     <div class="modal-content">
-        <h3>✏️ Edit Data Peserta Cicilan</h3>
+        <h3>✏️ Edit / Perbaiki Data Peserta</h3>
         <input type="hidden" id="editId">
         <div class="form-group"><label>Nama Peserta</label><input type="text" id="editNama"></div>
         <div class="form-group"><label>Berat Emas (Gram)</label><input type="number" id="editBerat"></div>
@@ -379,22 +379,18 @@
 
         tutupModal('modalEditNasabah');
 
-        // Hapus data lama lalu kirim data hasil edit ke Cloud
-        kirimKeCloud({ action: "hapus", id: id });
-        setTimeout(() => {
-            kirimKeCloud({
-                action: "tambah",
-                id: id,
-                nama: bNama,
-                berat: bBerat,
-                total: bTotal,
-                dp: bDP,
-                tenor: bTenor,
-                iuranFlat: bIuranFlat,
-                sisa: bSisaBaru,
-                tglAwal: n.tglAwal
-            });
-        }, 1000);
+        // Kirim perintah edit langsung ke Apps Script Cloud
+        kirimKeCloud({
+            action: "editFull",
+            id: id,
+            nama: bNama,
+            berat: bBerat,
+            total: bTotal,
+            dp: bDP,
+            tenor: bTenor,
+            iuranFlat: bIuranFlat,
+            sisa: bSisaBaru
+        });
     }
 
     function bayarCicilan() {
@@ -538,6 +534,25 @@
         link.href = URL.createObjectURL(blob);
         link.setAttribute("download", `Laporan_Cicilan_Emas_Pembeliaset_${new Date().toISOString().split('T')[0]}.csv`);
         document.body.appendChild(link); link.click(); document.body.removeChild(link);
+    }
+
+    function eksporBackupJSON() {
+        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify({ nasabah: nasabahList, dokumen: dokumenList, kas: kasTerkumpul }));
+        const link = document.createElement("a"); link.href = dataStr; link.download = `Backup_Cicilan_Emas_${new Date().toISOString().split('T')[0]}.json`; link.click();
+    }
+
+    function imporBackupJSON(event) {
+        const fileReader = new FileReader();
+        fileReader.onload = function(e) {
+            try {
+                const parsedData = JSON.parse(e.target.result);
+                if (parsedData.nasabah && parsedData.dokumen) {
+                    nasabahList = parsedData.nasabah; dokumenList = parsedData.dokumen; kasTerkumpul = parsedData.kas || 0;
+                    tampilkanDashboard(); alert("Data berhasil dipulihkan!");
+                }
+            } catch (err) { alert("Gagal membaca berkas JSON."); }
+        };
+        fileReader.readAsText(event.target.files[0]);
     }
 
     window.onload = muatDataCloud;
