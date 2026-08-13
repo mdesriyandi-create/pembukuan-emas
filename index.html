@@ -92,7 +92,7 @@
             </select>
         </div>
         <div class="modal-actions">
-            <button onclick="simpanEditNasabah()">Simpan Perubahan Auto-Save</button>
+            <button onclick="simpanEditNasabah()">Simpan Perubahan</button>
             <button class="btn-cancel" onclick="tutupModal('modalEditNasabah')">Batal</button>
         </div>
     </div>
@@ -100,9 +100,9 @@
 
 <div class="container">
     <div class="header">
-        <h1>✨ Dashboard Cicilan Emas (Cloud Auto-Save)</h1>
+        <h1>✨ Dashboard Cicilan Emas (Pembeliaset.id)</h1>
         <div>
-            <span class="status-cloud" id="statusConnection">⚡ Auto-Save Active</span>
+            <span class="status-cloud">⚡ Auto-Save Aktif</span>
             <span id="clock" style="font-size: 13px; color: #718096; margin-left: 10px;"></span>
         </div>
     </div>
@@ -157,7 +157,7 @@
                 </select>
             </div>
             <div class="form-group"><label>Tanggal Iuran Pertama (Bulan Ke-1)</label><input type="date" id="tglAwal"></div>
-            <button onclick="tambahNasabah()">Buat Kontrak Cicilan (Auto-Save)</button>
+            <button onclick="tambahNasabah()">Buat Kontrak Cicilan</button>
         </div>
 
         <div class="card">
@@ -220,9 +220,7 @@
 </div>
 
 <script>
-    // MASUKKAN URL GOOGLE APPS SCRIPT ANDA DI SINI
-    const SCRIPT_URL = "https://script.google.com/macros/s/PASTE_URL_APPS_SCRIPT_ANDA_DI_SINI/exec";
-
+    // Inisialisasi variabel dengan membaca memori bawaan browser
     let nasabahList = JSON.parse(localStorage.getItem('flatEmasNasabah')) || [];
     let dokumenList = JSON.parse(localStorage.getItem('flatEmasDokumen')) || [];
     let kasTerkumpul = parseFloat(localStorage.getItem('flatEmasKas')) || 0;
@@ -235,23 +233,12 @@
     function tutupModal(id) { document.getElementById(id).style.display = 'none'; }
     function hitungTglBulan(tglStr, bulanKe) { let d = new Date(tglStr); d.setMonth(d.getMonth() + bulanKe); return d.toISOString().split('T')[0]; }
 
-    // Simpan Otomatis (Ke LocalStorage & Google Sheets Cloud)
+    // Fungsi Penyimpanan Otomatis Permanen
     function simpanAuto() {
         localStorage.setItem('flatEmasNasabah', JSON.stringify(nasabahList));
         localStorage.setItem('flatEmasDokumen', JSON.stringify(dokumenList));
         localStorage.setItem('flatEmasKas', kasTerkumpul);
         tampilkanDashboard();
-    }
-
-    function syncToCloud(payload) {
-        if (SCRIPT_URL && !SCRIPT_URL.includes("PASTE_URL")) {
-            fetch(SCRIPT_URL, {
-                method: "POST",
-                mode: "no-cors",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(payload)
-            }).catch(e => console.log("Cloud sync error:", e));
-        }
     }
 
     function tambahNasabah() {
@@ -262,7 +249,7 @@
         const tenor = parseInt(document.getElementById('tenor').value) || 12;
         const tglAwal = document.getElementById('tglAwal').value;
 
-        if (!nama || !berat || isNaN(total) || !tglAwal) return alert('Mohon isi semua data formulir!');
+        if (!nama || !berat || isNaN(total) || !tglAwal) return alert('Mohon lengkapi semua formulir!');
 
         const sisaAwal = total - dp;
         const iuranFlat = Math.round(sisaAwal / tenor);
@@ -280,8 +267,7 @@
         document.getElementById('dp').value = '0';
 
         simpanAuto();
-        syncToCloud({ action: "tambah", id: newId, nama, berat, total, dp, tenor, iuranFlat, sisa: sisaAwal, tglAwal });
-        alert('Kontrak cicilan berhasil tersimpan otomatis!');
+        alert('Kontrak cicilan berhasil disimpan!');
     }
 
     function bayarCicilan() {
@@ -305,9 +291,8 @@
 
         document.getElementById('bayar').value = '';
         simpanAuto();
-        syncToCloud({ action: "update", id: id, sisaBaru: nasabah.sisa });
         lihatJadwal(id);
-        alert('Pembayaran iuran berhasil diperbarui secara otomatis!');
+        alert('Pembayaran iuran berhasil dicatat!');
     }
 
     function bukaEditNasabah(id) {
@@ -355,7 +340,6 @@
 
         tutupModal('modalEditNasabah');
         simpanAuto();
-        syncToCloud({ action: "update", id: id, sisaBaru: n.sisa });
         alert('Data peserta berhasil diperbarui!');
     }
 
@@ -368,7 +352,6 @@
             nasabahList = nasabahList.filter(x => x.id !== id);
             dokumenList = dokumenList.filter(d => d.idNasabah !== id);
             simpanAuto();
-            syncToCloud({ action: "hapus", id: id });
             document.getElementById('boxJadwal').style.display = 'none';
         }
     }
@@ -510,6 +493,7 @@
         fileReader.readAsText(event.target.files[0]);
     }
 
+    // Jalankan tampilan awal saat web dibuka
     tampilkanDashboard();
 </script>
 </body>
