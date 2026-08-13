@@ -72,6 +72,32 @@
     </svg>
 </div>
 
+<!-- Modal Dialog Edit Peserta -->
+<div class="modal" id="modalEditNasabah">
+    <div class="modal-content">
+        <h3>✏️ Edit Data Peserta Cicilan</h3>
+        <input type="hidden" id="editId">
+        <div class="form-group"><label>Nama Peserta</label><input type="text" id="editNama"></div>
+        <div class="form-group"><label>Berat Emas (Gram)</label><input type="number" id="editBerat"></div>
+        <div class="form-group"><label>Total Harga Emas (Rp)</label><input type="number" id="editTotal"></div>
+        <div class="form-group"><label>Uang Muka / DP (Rp)</label><input type="number" id="editDP"></div>
+        <div class="form-group">
+            <label>Jangka Waktu Tenor (Bulan)</label>
+            <select id="editTenor">
+                <option value="3">3 Bulan</option>
+                <option value="6">6 Bulan</option>
+                <option value="12">12 Bulan</option>
+                <option value="18">18 Bulan</option>
+                <option value="24">24 Bulan</option>
+            </select>
+        </div>
+        <div class="modal-actions">
+            <button onclick="simpanEditNasabah()">Simpan Perubahan ke Cloud</button>
+            <button class="btn-cancel" onclick="tutupModal('modalEditNasabah')">Batal</button>
+        </div>
+    </div>
+</div>
+
 <div class="container">
     <div class="header">
         <h1>✨ Dashboard Cicilan Emas (Cloud Database)</h1>
@@ -194,7 +220,7 @@
 </div>
 
 <script>
-    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxjqK2U6U2MPtj3fTJbAeaw5PnJqs9PTTyyDZPiiABF9fPawA-wdvdAxPQRMjKirMEu/exec";
+    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxtrhQ9QSzggy-aSLhL_iI6hFx12O1V2EzrjSTIg4lsivzkq-iiswcqU9YCuPMe4kYV2g/exec";
 
     let nasabahList = [];
     let dokumenList = JSON.parse(localStorage.getItem('flatEmasDokumen')) || [];
@@ -206,6 +232,7 @@
     }, 1000);
 
     function formatRp(num) { return "Rp " + Number(num).toLocaleString('id-ID'); }
+    function tutupModal(id) { document.getElementById(id).style.display = 'none'; }
     function hitungTglBulan(tglStr, bulanKe) { 
         if(!tglStr) return "-";
         let d = new Date(tglStr); 
@@ -321,10 +348,59 @@
         kirimKeCloud(payload);
     }
 
+    function bukaEditNasabah(id) {
+        const n = nasabahList.find(x => x.id == id);
+        if(!n) return;
+        document.getElementById('editId').value = n.id;
+        document.getElementById('editNama').value = n.nama;
+        document.getElementById('editBerat').value = n.berat;
+        document.getElementById('editTotal').value = n.total;
+        document.getElementById('editDP').value = n.dp;
+        document.getElementById('editTenor').value = n.tenor || 12;
+        document.getElementById('modalEditNasabah').style.display = 'flex';
+    }
+
+    function simpanEditNasabah() {
+        const id = document.getElementById('editId').value;
+        const n = nasabahList.find(x => x.id == id);
+        
+        const bNama = document.getElementById('editNama').value;
+        const bBerat = document.getElementById('editBerat').value;
+        const bTotal = parseFloat(document.getElementById('editTotal').value);
+        const bDP = parseFloat(document.getElementById('editDP').value) || 0;
+        const bTenor = parseInt(document.getElementById('editTenor').value) || 12;
+
+        if(!bNama || isNaN(bTotal)) return alert('Data tidak valid!');
+
+        const terbayarPokok = (n.total - n.dp) - n.sisa;
+        const bSisaAwal = bTotal - bDP;
+        const bIuranFlat = Math.round(bSisaAwal / bTenor);
+        const bSisaBaru = bSisaAwal - terbayarPokok;
+
+        tutupModal('modalEditNasabah');
+
+        // Hapus data lama lalu kirim data hasil edit ke Cloud
+        kirimKeCloud({ action: "hapus", id: id });
+        setTimeout(() => {
+            kirimKeCloud({
+                action: "tambah",
+                id: id,
+                nama: bNama,
+                berat: bBerat,
+                total: bTotal,
+                dp: bDP,
+                tenor: bTenor,
+                iuranFlat: bIuranFlat,
+                sisa: bSisaBaru,
+                tglAwal: n.tglAwal
+            });
+        }, 1000);
+    }
+
     function bayarCicilan() {
-        const id = parseInt(document.getElementById('selectNasabah').value);
+        const id = document.getElementById('selectNasabah').value;
         const bayar = parseFloat(document.getElementById('bayar').value);
-        const nasabah = nasabahList.find(n => n.id === id);
+        const nasabah = nasabahList.find(n => n.id == id);
 
         if (!nasabah || isNaN(bayar) || bayar <= 0) return alert('Pilih peserta dan masukkan nominal iuran!');
         if (bayar > nasabah.sisa) return alert('Nominal pembayaran melebihi sisa tagihan!');
@@ -342,9 +418,9 @@
     }
 
     function unggahDokumen() {
-        const id = parseInt(document.getElementById('selectNasabah').value);
+        const id = document.getElementById('selectNasabah').value;
         const fileInput = document.getElementById('fileDokumen');
-        const nasabah = nasabahList.find(n => n.id === id);
+        const nasabah = nasabahList.find(n => n.id == id);
 
         if (!nasabah || !fileInput.files[0]) return alert('Pilih nama peserta dan berkas!');
         const file = fileInput.files[0];
@@ -370,9 +446,9 @@
     }
 
     function pilihNasabah() {
-        const id = parseInt(document.getElementById('selectNasabah').value);
+        const id = document.getElementById('selectNasabah').value;
         const infoBox = document.getElementById('infoIuranBox');
-        const nasabah = nasabahList.find(n => n.id === id);
+        const nasabah = nasabahList.find(n => n.id == id);
 
         if (nasabah) {
             infoBox.style.display = 'block';
@@ -387,7 +463,7 @@
     }
 
     function lihatJadwal(id) {
-        const nasabah = nasabahList.find(n => n.id === id);
+        const nasabah = nasabahList.find(n => n.id == id);
         if (!nasabah) return;
         const today = new Date().toISOString().split('T')[0];
         document.getElementById('boxJadwal').style.display = 'block';
@@ -409,7 +485,7 @@
 
         document.getElementById('tabelNasabah').innerHTML = nasabahList.map(n => {
             totalPiutang += n.sisa;
-            sel.innerHTML += `<option value="${n.id}" ${parseInt(selectedVal) === n.id ? 'selected' : ''}>${n.nama}</option>`;
+            sel.innerHTML += `<option value="${n.id}" ${selectedVal == n.id ? 'selected' : ''}>${n.nama}</option>`;
 
             let tenor = n.tenor || 12;
             let bulanLunasCount = n.jadwal.filter(j => j.status === 'Lunas').length;
@@ -421,8 +497,9 @@
                 <td>${formatRp(n.sisa)}</td><td><b>${bulanLunasCount}/${tenor} Bln</b></td>
                 <td>
                     <div class="action-buttons">
-                        <button class="btn-sm" onclick="lihatJadwal(${n.id})">👁️ Jadwal</button>
-                        <button class="btn-sm btn-del" onclick="hapusNasabah(${n.id})">🗑️ Hapus</button>
+                        <button class="btn-sm" onclick="lihatJadwal('${n.id}')">👁️ Jadwal</button>
+                        <button class="btn-sm btn-edit" onclick="bukaEditNasabah('${n.id}')">✏️ Edit</button>
+                        <button class="btn-sm btn-del" onclick="hapusNasabah('${n.id}')">🗑️ Hapus</button>
                     </div>
                 </td>
             </tr>`;
