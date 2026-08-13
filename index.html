@@ -3,17 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard Cicilan Emas Online - Pembeliaset.id</title>
-    
-    <!-- Firebase SDK (v9/v10 Compat Script) -->
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
-
+    <title>Dashboard Cicilan Emas - Pembeliaset.id</title>
     <style>
         * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
         body { margin: 0; padding: 20px; background-color: #f0f2f5; color: #333; position: relative; min-height: 100vh; }
         .container { max-width: 1200px; margin: auto; position: relative; z-index: 1; }
         
+        /* Watermark Logo Pembeliaset.id */
         .watermark { position: fixed; bottom: 20px; right: 20px; opacity: 0.25; pointer-events: none; z-index: 9999; width: 260px; }
         .watermark svg { width: 100%; height: auto; }
 
@@ -96,7 +92,7 @@
             </select>
         </div>
         <div class="modal-actions">
-            <button onclick="simpanEditNasabah()">Simpan Perubahan Cloud</button>
+            <button onclick="simpanEditNasabah()">Simpan Perubahan Auto-Save</button>
             <button class="btn-cancel" onclick="tutupModal('modalEditNasabah')">Batal</button>
         </div>
     </div>
@@ -104,9 +100,9 @@
 
 <div class="container">
     <div class="header">
-        <h1>✨ Dashboard Cicilan Emas (Cloud Sync)</h1>
+        <h1>✨ Dashboard Cicilan Emas (Cloud Auto-Save)</h1>
         <div>
-            <span class="status-cloud" id="statusConnection">⚡ Cloud Online Auto-Sync</span>
+            <span class="status-cloud" id="statusConnection">⚡ Auto-Save Active</span>
             <span id="clock" style="font-size: 13px; color: #718096; margin-left: 10px;"></span>
         </div>
     </div>
@@ -137,6 +133,8 @@
         <div class="btn-group">
             <button class="btn-excel" onclick="eksporExcel()">📊 Tarik Laporan Cicilan ke Excel (Rapi)</button>
             <button class="btn-sec" onclick="eksporBackupJSON()">💾 Backup Seluruh System (JSON)</button>
+            <button class="btn-sec" onclick="document.getElementById('fileImport').click()">📤 Impor / Restore Data</button>
+            <input type="file" id="fileImport" accept=".json" style="display: none;" onchange="imporBackupJSON(event)">
         </div>
     </div>
 
@@ -159,7 +157,7 @@
                 </select>
             </div>
             <div class="form-group"><label>Tanggal Iuran Pertama (Bulan Ke-1)</label><input type="date" id="tglAwal"></div>
-            <button onclick="tambahNasabah()">Buat Kontrak Cicilan (Simpan Cloud)</button>
+            <button onclick="tambahNasabah()">Buat Kontrak Cicilan (Auto-Save)</button>
         </div>
 
         <div class="card">
@@ -222,24 +220,12 @@
 </div>
 
 <script>
-    // --- KONFIGURASI FIREBASE CLOUD (Ganti dengan kunci milik Anda) ---
-    const firebaseConfig = {
-        apiKey: "YOUR_API_KEY",
-        authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-        databaseURL: "https://YOUR_PROJECT_ID-default-rtdb.firebaseio.com",
-        projectId: "YOUR_PROJECT_ID",
-        storageBucket: "YOUR_PROJECT_ID.appspot.com",
-        messagingSenderId: "123456789",
-        appId: "YOUR_APP_ID"
-    };
+    // MASUKKAN URL GOOGLE APPS SCRIPT ANDA DI SINI
+    const SCRIPT_URL = "https://script.google.com/macros/s/PASTE_URL_APPS_SCRIPT_ANDA_DI_SINI/exec";
 
-    // Inisialisasi Firebase
-    firebase.initializeApp(firebaseConfig);
-    const db = firebase.database();
-
-    let nasabahList = [];
-    let dokumenList = [];
-    let kasTerkumpul = 0;
+    let nasabahList = JSON.parse(localStorage.getItem('flatEmasNasabah')) || [];
+    let dokumenList = JSON.parse(localStorage.getItem('flatEmasDokumen')) || [];
+    let kasTerkumpul = parseFloat(localStorage.getItem('flatEmasKas')) || 0;
 
     setInterval(() => {
         document.getElementById('clock').innerText = new Date().toLocaleString('id-ID');
@@ -249,29 +235,25 @@
     function tutupModal(id) { document.getElementById(id).style.display = 'none'; }
     function hitungTglBulan(tglStr, bulanKe) { let d = new Date(tglStr); d.setMonth(d.getMonth() + bulanKe); return d.toISOString().split('T')[0]; }
 
-    // --- SINKRONISASI REALTIME CLOUD FIREBASE ---
-    db.ref('cicilan_emas_data').on('value', (snapshot) => {
-        const data = snapshot.val();
-        if (data) {
-            nasabahList = data.nasabah || [];
-            dokumenList = data.dokumen || [];
-            kasTerkumpul = data.kas || 0;
-        } else {
-            nasabahList = []; dokumenList = []; kasTerkumpul = 0;
-        }
+    // Simpan Otomatis (Ke LocalStorage & Google Sheets Cloud)
+    function simpanAuto() {
+        localStorage.setItem('flatEmasNasabah', JSON.stringify(nasabahList));
+        localStorage.setItem('flatEmasDokumen', JSON.stringify(dokumenList));
+        localStorage.setItem('flatEmasKas', kasTerkumpul);
         tampilkanDashboard();
-    });
-
-    // Simpan otomatis ke Cloud
-    function simpanKeCloud() {
-        db.ref('cicilan_emas_data').set({
-            nasabah: nasabahList,
-            dokumen: dokumenList,
-            kas: kasTerkumpul
-        });
     }
 
-    // --- KONTRAK & IURAN ---
+    function syncToCloud(payload) {
+        if (SCRIPT_URL && !SCRIPT_URL.includes("PASTE_URL")) {
+            fetch(SCRIPT_URL, {
+                method: "POST",
+                mode: "no-cors",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload)
+            }).catch(e => console.log("Cloud sync error:", e));
+        }
+    }
+
     function tambahNasabah() {
         const nama = document.getElementById('nama').value;
         const berat = document.getElementById('berat').value;
@@ -280,7 +262,7 @@
         const tenor = parseInt(document.getElementById('tenor').value) || 12;
         const tglAwal = document.getElementById('tglAwal').value;
 
-        if (!nama || !berat || isNaN(total) || !tglAwal) return alert('Mohon lengkapi seluruh formulir kontrak!');
+        if (!nama || !berat || isNaN(total) || !tglAwal) return alert('Mohon isi semua data formulir!');
 
         const sisaAwal = total - dp;
         const iuranFlat = Math.round(sisaAwal / tenor);
@@ -296,9 +278,10 @@
 
         document.querySelectorAll('#nama, #berat, #total, #tglAwal').forEach(el => el.value = '');
         document.getElementById('dp').value = '0';
-        
-        simpanKeCloud();
-        alert('Kontrak berhasil disimpan secara online!');
+
+        simpanAuto();
+        syncToCloud({ action: "tambah", id: newId, nama, berat, total, dp, tenor, iuranFlat, sisa: sisaAwal, tglAwal });
+        alert('Kontrak cicilan berhasil tersimpan otomatis!');
     }
 
     function bayarCicilan() {
@@ -306,7 +289,7 @@
         const bayar = parseFloat(document.getElementById('bayar').value);
         const nasabah = nasabahList.find(n => n.id === id);
 
-        if (!nasabah || isNaN(bayar) || bayar <= 0) return alert('Pilih peserta dan masukkan nominal iuran yang valid.');
+        if (!nasabah || isNaN(bayar) || bayar <= 0) return alert('Pilih peserta dan masukkan nominal iuran!');
         if (bayar > nasabah.sisa) return alert('Nominal pembayaran melebihi sisa tagihan!');
 
         nasabah.sisa -= bayar;
@@ -321,9 +304,10 @@
         });
 
         document.getElementById('bayar').value = '';
-        simpanKeCloud(); 
-        lihatJadwal(id); 
-        alert('Pembayaran berhasil diperbarui ke server Cloud!');
+        simpanAuto();
+        syncToCloud({ action: "update", id: id, sisaBaru: nasabah.sisa });
+        lihatJadwal(id);
+        alert('Pembayaran iuran berhasil diperbarui secara otomatis!');
     }
 
     function bukaEditNasabah(id) {
@@ -370,19 +354,21 @@
         n.jadwal = jadwalBaru;
 
         tutupModal('modalEditNasabah');
-        simpanKeCloud(); 
-        alert('Data berhasil diedit dan disinkronkan ke Cloud!');
+        simpanAuto();
+        syncToCloud({ action: "update", id: id, sisaBaru: n.sisa });
+        alert('Data peserta berhasil diperbarui!');
     }
 
     function hapusNasabah(id) {
-        if(!confirm('⚠️ Yakin ingin menghapus data dari Cloud server?')) return;
+        if(!confirm('⚠️ Yakin ingin menghapus peserta ini?')) return;
         const n = nasabahList.find(x => x.id === id);
         if(n) {
             let totalTelahDibayar = (n.total - n.dp) - n.sisa + n.dp;
             kasTerkumpul -= totalTelahDibayar;
             nasabahList = nasabahList.filter(x => x.id !== id);
             dokumenList = dokumenList.filter(d => d.idNasabah !== id);
-            simpanKeCloud();
+            simpanAuto();
+            syncToCloud({ action: "hapus", id: id });
             document.getElementById('boxJadwal').style.display = 'none';
         }
     }
@@ -399,17 +385,15 @@
         const reader = new FileReader();
         reader.onload = function(e) {
             dokumenList.unshift({ idDoc: Date.now(), idNasabah: nasabah.id, namaNasabah: nasabah.nama, namaFile: file.name, dataUrl: e.target.result });
-            fileInput.value = ''; 
-            simpanKeCloud(); 
-            alert('Dokumen akad berhasil tersimpan ke Cloud!');
+            fileInput.value = ''; simpanAuto(); alert('Dokumen akad berhasil tersimpan!');
         };
         reader.readAsDataURL(file);
     }
 
     function hapusDokumen(idDoc) {
-        if(confirm('Yakin ingin menghapus dokumen dari Cloud?')) {
+        if(confirm('Yakin ingin menghapus dokumen ini?')) {
             dokumenList = dokumenList.filter(d => d.idDoc !== idDoc);
-            simpanKeCloud();
+            simpanAuto();
         }
     }
 
@@ -511,7 +495,22 @@
         const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify({ nasabah: nasabahList, dokumen: dokumenList, kas: kasTerkumpul }));
         const link = document.createElement("a"); link.href = dataStr; link.download = `Backup_Cicilan_Emas_${new Date().toISOString().split('T')[0]}.json`; link.click();
     }
+
+    function imporBackupJSON(event) {
+        const fileReader = new FileReader();
+        fileReader.onload = function(e) {
+            try {
+                const parsedData = JSON.parse(e.target.result);
+                if (parsedData.nasabah && parsedData.dokumen) {
+                    nasabahList = parsedData.nasabah; dokumenList = parsedData.dokumen; kasTerkumpul = parsedData.kas || 0;
+                    simpanAuto(); alert("Data berhasil dipulihkan!");
+                }
+            } catch (err) { alert("Gagal membaca berkas JSON."); }
+        };
+        fileReader.readAsText(event.target.files[0]);
+    }
+
+    tampilkanDashboard();
 </script>
 </body>
 </html>
-
