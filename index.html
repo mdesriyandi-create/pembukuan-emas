@@ -220,6 +220,27 @@
 </div>
 
 <script>
+    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwO6GdOpGSiWqD5YISr9xL_g16IzihZiYtwL0ZxJAeKCA8eqN908L0oW_CVBOvE98HvBg/exec";
+    function muatDataCloud() {
+    if (typeof SCRIPT_URL !== 'undefined' && SCRIPT_URL && !SCRIPT_URL.includes("URL_GOOGLE_APPS_SCRIPT_ANDA")) {
+        fetch(SCRIPT_URL)
+            .then(res => res.json())
+            .then(data => {
+                if (Array.isArray(data) && data.length > 0) {
+                    nasabahList = data.map(row => {
+                        let id = row[0], nama = row[1], berat = row[2], total = row[3], dp = row[4], tenor = row[5], iuranFlat = row[6], sisa = row[7], tglAwal = row[8];
+                        let jadwal = [];
+                        for (let i = 0; i < tenor; i++) {
+                            jadwal.push({ bulan: i + 1, tglJatuhTempo: hitungTglBulan(tglAwal, i), nominal: iuranFlat, status: 'Belum Lunas' });
+                        }
+                        return { id, nama, berat, total, dp, tenor, iuranFlat, sisa, tglAwal, jadwal };
+                    });
+                    simpanAuto();
+                }
+            }).catch(e => console.log("Gagal muat data cloud:", e));
+    }
+}
+    muatDataCloud();
     // Inisialisasi variabel dengan membaca memori bawaan browser
     let nasabahList = JSON.parse(localStorage.getItem('flatEmasNasabah')) || [];
     let dokumenList = JSON.parse(localStorage.getItem('flatEmasDokumen')) || [];
