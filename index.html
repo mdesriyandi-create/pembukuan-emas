@@ -9,7 +9,6 @@
         body { margin: 0; padding: 20px; background-color: #f0f2f5; color: #333; position: relative; min-height: 100vh; }
         .container { max-width: 1200px; margin: auto; position: relative; z-index: 1; }
         
-        /* Watermark Logo Pembeliaset.id */
         .watermark { position: fixed; bottom: 20px; right: 20px; opacity: 0.25; pointer-events: none; z-index: 9999; width: 260px; }
         .watermark svg { width: 100%; height: auto; }
 
@@ -100,9 +99,9 @@
 
 <div class="container">
     <div class="header">
-        <h1>✨ Dashboard Cicilan Emas (Pembeliaset.id)</h1>
+        <h1>✨ Dashboard Cicilan Emas (Cloud Database)</h1>
         <div>
-            <span class="status-cloud">⚡ Auto-Save Aktif</span>
+            <span class="status-cloud" id="statusCloud">☁️ Syncing Cloud...</span>
             <span id="clock" style="font-size: 13px; color: #718096; margin-left: 10px;"></span>
         </div>
     </div>
@@ -157,7 +156,7 @@
                 </select>
             </div>
             <div class="form-group"><label>Tanggal Iuran Pertama (Bulan Ke-1)</label><input type="date" id="tglAwal"></div>
-            <button onclick="tambahNasabah()">Buat Kontrak Cicilan</button>
+            <button onclick="tambahNasabah()">Buat Kontrak Cicilan (Simpan Cloud)</button>
         </div>
 
         <div class="card">
@@ -220,31 +219,12 @@
 </div>
 
 <script>
-    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwO6GdOpGSiWqD5YISr9xL_g16IzihZiYtwL0ZxJAeKCA8eqN908L0oW_CVBOvE98HvBg/exec";
-    function muatDataCloud() {
-    if (typeof SCRIPT_URL !== 'undefined' && SCRIPT_URL && !SCRIPT_URL.includes("URL_GOOGLE_APPS_SCRIPT_ANDA")) {
-        fetch(SCRIPT_URL)
-            .then(res => res.json())
-            .then(data => {
-                if (Array.isArray(data) && data.length > 0) {
-                    nasabahList = data.map(row => {
-                        let id = row[0], nama = row[1], berat = row[2], total = row[3], dp = row[4], tenor = row[5], iuranFlat = row[6], sisa = row[7], tglAwal = row[8];
-                        let jadwal = [];
-                        for (let i = 0; i < tenor; i++) {
-                            jadwal.push({ bulan: i + 1, tglJatuhTempo: hitungTglBulan(tglAwal, i), nominal: iuranFlat, status: 'Belum Lunas' });
-                        }
-                        return { id, nama, berat, total, dp, tenor, iuranFlat, sisa, tglAwal, jadwal };
-                    });
-                    simpanAuto();
-                }
-            }).catch(e => console.log("Gagal muat data cloud:", e));
-    }
-}
-    muatDataCloud();
-    // Inisialisasi variabel dengan membaca memori bawaan browser
-    let nasabahList = JSON.parse(localStorage.getItem('flatEmasNasabah')) || [];
+    // MASUKKAN URL HASIL DEPLOY LANGKAH 2 DI SINI:
+    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyRJO3W487B_mni1vvd6kqmWlXC9UyZjy-o3vAV0sfmzxojixX2_dYaauhul7heVeV2/exec";
+
+    let nasabahList = [];
     let dokumenList = JSON.parse(localStorage.getItem('flatEmasDokumen')) || [];
-    let kasTerkumpul = parseFloat(localStorage.getItem('flatEmasKas')) || 0;
+    let kasTerkumpul = 0;
 
     setInterval(() => {
         document.getElementById('clock').innerText = new Date().toLocaleString('id-ID');
@@ -252,14 +232,82 @@
 
     function formatRp(num) { return "Rp " + Number(num).toLocaleString('id-ID'); }
     function tutupModal(id) { document.getElementById(id).style.display = 'none'; }
-    function hitungTglBulan(tglStr, bulanKe) { let d = new Date(tglStr); d.setMonth(d.getMonth() + bulanKe); return d.toISOString().split('T')[0]; }
+    function hitungTglBulan(tglStr, bulanKe) { 
+        if(!tglStr) return "-";
+        let d = new Date(tglStr); 
+        d.setMonth(d.getMonth() + bulanKe); 
+        return d.toISOString().split('T')[0]; 
+    }
 
-    // Fungsi Penyimpanan Otomatis Permanen
-    function simpanAuto() {
-        localStorage.setItem('flatEmasNasabah', JSON.stringify(nasabahList));
-        localStorage.setItem('flatEmasDokumen', JSON.stringify(dokumenList));
-        localStorage.setItem('flatEmasKas', kasTerkumpul);
-        tampilkanDashboard();
+    // FUNGSI UTAMA: Ambil Data Langsung Dari Google Sheets Cloud
+    function muatDataCloud() {
+        document.getElementById('statusCloud').innerText = "🔄 Memuat Data Cloud...";
+        document.getElementById('statusCloud').style.background = "#f39c12";
+
+        if (!SCRIPT_URL || SCRIPT_URL.includes("GANTI_DENGAN_URL")) {
+            alert("URL Apps Script belum dipasang di kode HTML!");
+            return;
+        }
+
+        fetch(SCRIPT_URL)
+            .then(res => res.json())
+            .then(data => {
+                kasTerkumpul = 0;
+                if (Array.isArray(data)) {
+                    nasabahList = data.map(row => {
+                        let id = row[0];
+                        let nama = row[1];
+                        let berat = row[2];
+                        let total = parseFloat(row[3]) || 0;
+                        let dp = parseFloat(row[4]) || 0;
+                        let tenor = parseInt(row[5]) || 12;
+                        let iuranFlat = parseFloat(row[6]) || 0;
+                        let sisa = parseFloat(row[7]) || 0;
+                        let tglAwal = row[8] ? new Date(row[8]).toISOString().split('T')[0] : '';
+
+                        let totalTerbayar = (total - dp) - sisa;
+                        kasTerkumpul += (dp + totalTerbayar);
+
+                        let jadwal = [];
+                        let sisaDana = totalTerbayar;
+                        for (let i = 0; i < tenor; i++) {
+                            let st = 'Belum Lunas';
+                            if (sisaDana >= iuranFlat) {
+                                st = 'Lunas';
+                                sisaDana -= iuranFlat;
+                            }
+                            jadwal.push({ bulan: i + 1, tglJatuhTempo: hitungTglBulan(tglAwal, i), nominal: iuranFlat, status: st });
+                        }
+
+                        return { id, nama, berat, total, dp, tenor, iuranFlat, sisa, tglAwal, jadwal };
+                    });
+                }
+                document.getElementById('statusCloud').innerText = "⚡ Cloud Connected";
+                document.getElementById('statusCloud').style.background = "#27ae60";
+                tampilkanDashboard();
+            })
+            .catch(err => {
+                console.error("Gagal koneksi cloud:", err);
+                document.getElementById('statusCloud').innerText = "❌ Disconnected";
+                document.getElementById('statusCloud').style.background = "#e74c3c";
+            });
+    }
+
+    function kirimKeCloud(payload) {
+        document.getElementById('statusCloud').innerText = "⏳ Menyimpan Ke Cloud...";
+        document.getElementById('statusCloud').style.background = "#3498db";
+
+        fetch(SCRIPT_URL, {
+            method: "POST",
+            mode: "no-cors",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+        }).then(() => {
+            setTimeout(muatDataCloud, 1500); // Reload data otomatis setelah simpan
+        }).catch(err => {
+            alert("Gagal mengirim ke Google Sheets!");
+            console.error(err);
+        });
     }
 
     function tambahNasabah() {
@@ -274,21 +322,25 @@
 
         const sisaAwal = total - dp;
         const iuranFlat = Math.round(sisaAwal / tenor);
-        const newId = nasabahList.length > 0 ? nasabahList[nasabahList.length - 1].id + 1 : 1;
+        const newId = Date.now(); // ID unik timestamp
 
-        let jadwal = [];
-        for (let i = 0; i < tenor; i++) {
-            jadwal.push({ bulan: i + 1, tglJatuhTempo: hitungTglBulan(tglAwal, i), nominal: iuranFlat, status: 'Belum Lunas' });
-        }
-
-        nasabahList.push({ id: newId, nama, berat, total, dp, tenor, iuranFlat, sisa: sisaAwal, tglAwal, jadwal });
-        kasTerkumpul += dp;
+        const payload = {
+            action: "tambah",
+            id: newId,
+            nama: nama,
+            berat: berat,
+            total: total,
+            dp: dp,
+            tenor: tenor,
+            iuranFlat: iuranFlat,
+            sisa: sisaAwal,
+            tglAwal: tglAwal
+        };
 
         document.querySelectorAll('#nama, #berat, #total, #tglAwal').forEach(el => el.value = '');
         document.getElementById('dp').value = '0';
 
-        simpanAuto();
-        alert('Kontrak cicilan berhasil disimpan!');
+        kirimKeCloud(payload);
     }
 
     function bayarCicilan() {
@@ -299,82 +351,16 @@
         if (!nasabah || isNaN(bayar) || bayar <= 0) return alert('Pilih peserta dan masukkan nominal iuran!');
         if (bayar > nasabah.sisa) return alert('Nominal pembayaran melebihi sisa tagihan!');
 
-        nasabah.sisa -= bayar;
-        kasTerkumpul += bayar;
-
-        let totalTerbayar = (nasabah.total - nasabah.dp) - nasabah.sisa;
-        let sisaDana = totalTerbayar;
-
-        nasabah.jadwal.forEach(j => {
-            if (sisaDana >= j.nominal) { j.status = 'Lunas'; sisaDana -= j.nominal; } 
-            else { j.status = 'Belum Lunas'; }
-        });
+        const sisaBaru = nasabah.sisa - bayar;
 
         document.getElementById('bayar').value = '';
-        simpanAuto();
-        lihatJadwal(id);
-        alert('Pembayaran iuran berhasil dicatat!');
-    }
-
-    function bukaEditNasabah(id) {
-        const n = nasabahList.find(x => x.id === id);
-        if(!n) return;
-        document.getElementById('editId').value = n.id;
-        document.getElementById('editNama').value = n.nama;
-        document.getElementById('editBerat').value = n.berat;
-        document.getElementById('editTotal').value = n.total;
-        document.getElementById('editDP').value = n.dp;
-        document.getElementById('editTenor').value = n.tenor || 12;
-        document.getElementById('modalEditNasabah').style.display = 'flex';
-    }
-
-    function simpanEditNasabah() {
-        const id = parseInt(document.getElementById('editId').value);
-        const n = nasabahList.find(x => x.id === id);
-        
-        const bNama = document.getElementById('editNama').value;
-        const bBerat = document.getElementById('editBerat').value;
-        const bTotal = parseFloat(document.getElementById('editTotal').value);
-        const bDP = parseFloat(document.getElementById('editDP').value) || 0;
-        const bTenor = parseInt(document.getElementById('editTenor').value) || 12;
-
-        if(!bNama || isNaN(bTotal)) return alert('Data tidak valid!');
-
-        const terbayarPokok = (n.total - n.dp) - n.sisa; 
-        kasTerkumpul -= n.dp; kasTerkumpul += bDP;
-
-        n.nama = bNama; n.berat = bBerat; n.total = bTotal; n.dp = bDP; n.tenor = bTenor;
-        const bSisaAwal = bTotal - bDP;
-        n.iuranFlat = Math.round(bSisaAwal / bTenor);
-        n.sisa = bSisaAwal - terbayarPokok;
-
-        let jadwalBaru = [];
-        let tglMulai = n.tglAwal || new Date().toISOString().split('T')[0];
-        let sisaDana = terbayarPokok;
-
-        for (let i = 0; i < bTenor; i++) {
-            let status = 'Belum Lunas';
-            if (sisaDana >= n.iuranFlat) { status = 'Lunas'; sisaDana -= n.iuranFlat; }
-            jadwalBaru.push({ bulan: i + 1, tglJatuhTempo: hitungTglBulan(tglMulai, i), nominal: n.iuranFlat, status: status });
-        }
-        n.jadwal = jadwalBaru;
-
-        tutupModal('modalEditNasabah');
-        simpanAuto();
-        alert('Data peserta berhasil diperbarui!');
+        kirimKeCloud({ action: "update", id: id, sisaBaru: sisaBaru });
     }
 
     function hapusNasabah(id) {
-        if(!confirm('⚠️ Yakin ingin menghapus peserta ini?')) return;
-        const n = nasabahList.find(x => x.id === id);
-        if(n) {
-            let totalTelahDibayar = (n.total - n.dp) - n.sisa + n.dp;
-            kasTerkumpul -= totalTelahDibayar;
-            nasabahList = nasabahList.filter(x => x.id !== id);
-            dokumenList = dokumenList.filter(d => d.idNasabah !== id);
-            simpanAuto();
-            document.getElementById('boxJadwal').style.display = 'none';
-        }
+        if(!confirm('⚠️ Yakin ingin menghapus peserta ini dari Cloud Google Sheets?')) return;
+        kirimKeCloud({ action: "hapus", id: id });
+        document.getElementById('boxJadwal').style.display = 'none';
     }
 
     function unggahDokumen() {
@@ -389,7 +375,10 @@
         const reader = new FileReader();
         reader.onload = function(e) {
             dokumenList.unshift({ idDoc: Date.now(), idNasabah: nasabah.id, namaNasabah: nasabah.nama, namaFile: file.name, dataUrl: e.target.result });
-            fileInput.value = ''; simpanAuto(); alert('Dokumen akad berhasil tersimpan!');
+            fileInput.value = ''; 
+            localStorage.setItem('flatEmasDokumen', JSON.stringify(dokumenList));
+            tampilkanDashboard();
+            alert('Dokumen berhasil tersimpan di browser!');
         };
         reader.readAsDataURL(file);
     }
@@ -397,7 +386,8 @@
     function hapusDokumen(idDoc) {
         if(confirm('Yakin ingin menghapus dokumen ini?')) {
             dokumenList = dokumenList.filter(d => d.idDoc !== idDoc);
-            simpanAuto();
+            localStorage.setItem('flatEmasDokumen', JSON.stringify(dokumenList));
+            tampilkanDashboard();
         }
     }
 
@@ -413,7 +403,8 @@
             document.getElementById('bayar').value = nasabah.iuranFlat;
             lihatJadwal(id);
         } else {
-            infoBox.style.display = 'none'; document.getElementById('boxJadwal').style.display = 'none';
+            infoBox.style.display = 'none'; 
+            document.getElementById('boxJadwal').style.display = 'none';
         }
     }
 
@@ -440,7 +431,7 @@
 
         document.getElementById('tabelNasabah').innerHTML = nasabahList.map(n => {
             totalPiutang += n.sisa;
-            sel.innerHTML += `<option value="${n.id}" ${parseInt(selectedVal) === n.id ? 'selected' : ''}>${n.id} - ${n.nama}</option>`;
+            sel.innerHTML += `<option value="${n.id}" ${parseInt(selectedVal) === n.id ? 'selected' : ''}>${n.nama}</option>`;
 
             let tenor = n.tenor || 12;
             let bulanLunasCount = n.jadwal.filter(j => j.status === 'Lunas').length;
@@ -453,7 +444,6 @@
                 <td>
                     <div class="action-buttons">
                         <button class="btn-sm" onclick="lihatJadwal(${n.id})">👁️ Jadwal</button>
-                        <button class="btn-sm btn-edit" onclick="bukaEditNasabah(${n.id})">✏️ Edit</button>
                         <button class="btn-sm btn-del" onclick="hapusNasabah(${n.id})">🗑️ Hapus</button>
                     </div>
                 </td>
@@ -495,27 +485,8 @@
         document.body.appendChild(link); link.click(); document.body.removeChild(link);
     }
 
-    function eksporBackupJSON() {
-        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify({ nasabah: nasabahList, dokumen: dokumenList, kas: kasTerkumpul }));
-        const link = document.createElement("a"); link.href = dataStr; link.download = `Backup_Cicilan_Emas_${new Date().toISOString().split('T')[0]}.json`; link.click();
-    }
-
-    function imporBackupJSON(event) {
-        const fileReader = new FileReader();
-        fileReader.onload = function(e) {
-            try {
-                const parsedData = JSON.parse(e.target.result);
-                if (parsedData.nasabah && parsedData.dokumen) {
-                    nasabahList = parsedData.nasabah; dokumenList = parsedData.dokumen; kasTerkumpul = parsedData.kas || 0;
-                    simpanAuto(); alert("Data berhasil dipulihkan!");
-                }
-            } catch (err) { alert("Gagal membaca berkas JSON."); }
-        };
-        fileReader.readAsText(event.target.files[0]);
-    }
-
-    // Jalankan tampilan awal saat web dibuka
-    tampilkanDashboard();
+    // Panggil muat data dari cloud secara otomatis saat web dibuka
+    window.onload = muatDataCloud;
 </script>
 </body>
 </html>
