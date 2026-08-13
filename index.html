@@ -132,9 +132,6 @@
         <h2 style="border: none; padding: 0; margin-bottom: 10px;">📥 Menu Tarik Data & Cadangan System</h2>
         <div class="btn-group">
             <button class="btn-excel" onclick="eksporExcel()">📊 Tarik Laporan Cicilan ke Excel (Rapi)</button>
-            <button class="btn-sec" onclick="eksporBackupJSON()">💾 Backup Seluruh System (JSON)</button>
-            <button class="btn-sec" onclick="document.getElementById('fileImport').click()">📤 Impor / Restore Data</button>
-            <input type="file" id="fileImport" accept=".json" style="display: none;" onchange="imporBackupJSON(event)">
         </div>
     </div>
 
@@ -175,10 +172,10 @@
             <hr style="margin: 20px 0; border: none; border-top: 1px solid #e2e8f0;">
 
             <div class="form-group">
-                <label>Upload File Akad / KTP / Struk Transfer (Max 2MB)</label>
+                <label>Upload File Akad / KTP / Struk Transfer (Max 2MB - Cloud Drive)</label>
                 <input type="file" id="fileDokumen" accept="image/*,application/pdf">
             </div>
-            <button onclick="unggahDokumen()" style="background: #2980b9;">Unggah Dokumen Digital</button>
+            <button onclick="unggahDokumenCloud()" style="background: #2980b9;">Unggah Dokumen Ke Cloud Drive</button>
         </div>
     </div>
 
@@ -208,9 +205,9 @@
         </div>
     </div>
 
-    <!-- Tabel Kelompok Arsip Dokumen -->
+    <!-- Tabel Kelompok Arsip Dokumen Cloud -->
     <div class="card" style="margin-bottom: 25px;">
-        <h2>📂 Arsip Dokumen Akad Digital (Dikelompokkan)</h2>
+        <h2>📂 Arsip Dokumen Akad Digital (Google Drive Cloud)</h2>
         <div style="overflow-x: auto;">
             <table>
                 <thead>
@@ -221,13 +218,13 @@
         </div>
     </div>
 
-    <!-- Tabel Rincian Berkas Dokumen (Akan Muncul Saat Klik Review Dokumen) -->
+    <!-- Tabel Rincian Berkas Dokumen -->
     <div class="card" id="boxReviewDokumen" style="margin-bottom: 25px; display:none;">
-        <h2 id="judulReviewDokumen">📁 Daftar Berkas Dokumen Digital</h2>
+        <h2 id="judulReviewDokumen">📁 Daftar Berkas Dokumen Digital (Google Drive)</h2>
         <div style="overflow-x: auto;">
             <table>
                 <thead>
-                    <tr><th>Nama Berkas Dokumen</th><th>Aksi Unduh / Hapus</th></tr>
+                    <tr><th>Nama Berkas Dokumen</th><th>Buka Berkas di Google Drive</th></tr>
                 </thead>
                 <tbody id="tabelDetailDokumen"></tbody>
             </table>
@@ -236,10 +233,11 @@
 </div>
 
 <script>
+    // PASTA_URL_DEPLOY_APPS_SCRIPT_TERBARU_ANDA_DI_SINI
     const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbz52ytqOnA4vRbn74x8TQ_iG7sNJW0du8xh8Bfh4MHi1AyN2l6RNZhUfAyKEdhgPl6V/exec";
 
     let nasabahList = [];
-    let dokumenList = JSON.parse(localStorage.getItem('flatEmasDokumen')) || [];
+    let dokumenCloudList = [];
     let kasTerkumpul = 0;
 
     setInterval(() => {
@@ -265,10 +263,13 @@
 
         fetch(SCRIPT_URL)
             .then(res => res.json())
-            .then(data => {
+            .then(resData => {
                 kasTerkumpul = 0;
-                if (Array.isArray(data)) {
-                    nasabahList = data.map(row => {
+                let dataNasabah = resData.nasabah || [];
+                dokumenCloudList = resData.dokumen || [];
+
+                if (Array.isArray(dataNasabah)) {
+                    nasabahList = dataNasabah.map(row => {
                         let id = row[0];
                         let nama = row[1];
                         let berat = row[2];
@@ -324,9 +325,9 @@
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload)
         }).then(() => {
-            setTimeout(muatDataCloud, 1500);
+            setTimeout(muatDataCloud, 2000);
         }).catch(err => {
-            alert("Gagal mengirim ke Google Sheets!");
+            alert("Gagal mengirim ke Cloud!");
             console.error(err);
         });
     }
@@ -362,6 +363,59 @@
         document.getElementById('dp').value = '0';
 
         kirimKeCloud(payload);
+    }
+
+    function unggahDokumenCloud() {
+        const id = document.getElementById('selectNasabah').value;
+        const fileInput = document.getElementById('fileDokumen');
+        const nasabah = nasabahList.find(n => n.id == id);
+
+        if (!nasabah || !fileInput.files[0]) return alert('Pilih nama peserta dan berkas!');
+        const file = fileInput.files[0];
+        if (file.size > 2 * 1024 * 1024) return alert('Ukuran file maksimal 2MB!');
+
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            kirimKeCloud({
+                action: "uploadDokumen",
+                idNasabah: nasabah.id,
+                namaNasabah: nasabah.nama,
+                fileName: file.name,
+                fileData: e.target.result
+            });
+            fileInput.value = '';
+            alert('Mengunggah dokumen ke Google Drive Cloud...');
+        };
+        reader.readAsDataURL(file);
+    }
+
+    function reviewDokumen(idNasabah) {
+        const docs = dokumenCloudList.filter(d => d[1] == idNasabah);
+        const nasabah = nasabahList.find(n => n.id == idNasabah);
+        const nama = nasabah ? nasabah.nama : (docs.length > 0 ? docs[0][2] : 'Peserta');
+
+        const boxReview = document.getElementById('boxReviewDokumen');
+        const judul = document.getElementById('judulReviewDokumen');
+        const tbody = document.getElementById('tabelDetailDokumen');
+
+        boxReview.style.display = 'block';
+        judul.innerText = `📁 Daftar Berkas Dokumen Cloud Drive - ${nama}`;
+
+        if(docs.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="2" style="text-align:center; color:#999;">Belum ada dokumen cloud yang diunggah untuk peserta ini.</td></tr>`;
+            return;
+        }
+
+        tbody.innerHTML = docs.map(d => `
+            <tr>
+                <td><b>${d[3]}</b></td>
+                <td>
+                    <a href="${d[4]}" target="_blank"><button class="btn-sm" style="background:#27ae60;">🔗 Buka / Unduh di Google Drive</button></a>
+                </td>
+            </tr>
+        `).join('');
+
+        boxReview.scrollIntoView({ behavior: 'smooth' });
     }
 
     function bukaEditNasabah(id) {
@@ -428,35 +482,6 @@
         document.getElementById('boxJadwal').style.display = 'none';
     }
 
-    function unggahDokumen() {
-        const id = document.getElementById('selectNasabah').value;
-        const fileInput = document.getElementById('fileDokumen');
-        const nasabah = nasabahList.find(n => n.id == id);
-
-        if (!nasabah || !fileInput.files[0]) return alert('Pilih nama peserta dan berkas!');
-        const file = fileInput.files[0];
-        if (file.size > 2 * 1024 * 1024) return alert('Ukuran file maksimal 2MB!');
-
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            dokumenList.unshift({ idDoc: Date.now(), idNasabah: nasabah.id, namaNasabah: nasabah.nama, namaFile: file.name, dataUrl: e.target.result });
-            fileInput.value = ''; 
-            localStorage.setItem('flatEmasDokumen', JSON.stringify(dokumenList));
-            tampilkanDashboard();
-            alert('Dokumen berhasil tersimpan di browser!');
-        };
-        reader.readAsDataURL(file);
-    }
-
-    function hapusDokumen(idDoc, idNasabah) {
-        if(confirm('Yakin ingin menghapus dokumen ini?')) {
-            dokumenList = dokumenList.filter(d => d.idDoc !== idDoc);
-            localStorage.setItem('flatEmasDokumen', JSON.stringify(dokumenList));
-            tampilkanDashboard();
-            if(idNasabah) reviewDokumen(idNasabah);
-        }
-    }
-
     function pilihNasabah() {
         const id = document.getElementById('selectNasabah').value;
         const infoBox = document.getElementById('infoIuranBox');
@@ -485,39 +510,6 @@
             let badge = j.status === 'Lunas' ? '<span class="badge badge-lunas">LUNAS</span>' : (j.tglJatuhTempo < today ? '<span class="badge badge-jt">JATUH TEMPO</span>' : '<span class="badge badge-mencicil">BELUM DIBAYAR</span>');
             return `<tr><td>Bulan Ke-${j.bulan}</td><td>${j.tglJatuhTempo}</td><td>${formatRp(j.nominal)}</td><td>${badge}</td></tr>`;
         }).join('');
-    }
-
-    // FUNGSI BARU: Review Dokumen Per Peserta
-    function reviewDokumen(idNasabah) {
-        const docs = dokumenList.filter(d => d.idNasabah == idNasabah);
-        const nasabah = nasabahList.find(n => n.id == idNasabah);
-        const nama = nasabah ? nasabah.nama : (docs.length > 0 ? docs[0].namaNasabah : 'Peserta');
-
-        const boxReview = document.getElementById('boxReviewDokumen');
-        const judul = document.getElementById('judulReviewDokumen');
-        const tbody = document.getElementById('tabelDetailDokumen');
-
-        boxReview.style.display = 'block';
-        judul.innerText = `📁 Daftar Berkas Dokumen Digital - ${nama}`;
-
-        if(docs.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="2" style="text-align:center; color:#999;">Belum ada dokumen yang diunggah untuk peserta ini.</td></tr>`;
-            return;
-        }
-
-        tbody.innerHTML = docs.map(d => `
-            <tr>
-                <td><b>${d.namaFile}</b></td>
-                <td>
-                    <div class="action-buttons">
-                        <a href="${d.dataUrl}" download="${d.namaFile}"><button class="btn-sm">⬇️ Unduh</button></a>
-                        <button class="btn-sm btn-del" onclick="hapusDokumen(${d.idDoc}, '${idNasabah}')">🗑️ Hapus</button>
-                    </div>
-                </td>
-            </tr>
-        `).join('');
-
-        boxReview.scrollIntoView({ behavior: 'smooth' });
     }
 
     function tampilkanDashboard() {
@@ -550,20 +542,18 @@
             </tr>`;
         }).join('');
 
-        // LOGIKA BARU: Kelompokkan dokumen berdasarkan ID/Nama Peserta
+        // Kelompokkan dokumen Cloud Drive per peserta
         let groupMap = {};
-        
-        // Inisialisasi daftar peserta dari nasabahList
         nasabahList.forEach(n => {
             groupMap[n.id] = { idNasabah: n.id, nama: n.nama, count: 0 };
         });
 
-        // Hitung dokumen yang diunggah
-        dokumenList.forEach(d => {
-            if(!groupMap[d.idNasabah]) {
-                groupMap[d.idNasabah] = { idNasabah: d.idNasabah, nama: d.namaNasabah, count: 0 };
+        dokumenCloudList.forEach(d => {
+            let idNas = d[1];
+            if(!groupMap[idNas]) {
+                groupMap[idNas] = { idNasabah: idNas, nama: d[2], count: 0 };
             }
-            groupMap[d.idNasabah].count += 1;
+            groupMap[idNas].count += 1;
         });
 
         const groups = Object.values(groupMap);
@@ -574,7 +564,7 @@
             document.getElementById('tabelGroupDokumen').innerHTML = groups.map(g => `
                 <tr>
                     <td><b>${g.nama}</b></td>
-                    <td><b>${g.count} Berkas Dokumen</b></td>
+                    <td><b>${g.count} Berkas Dokumen Cloud</b></td>
                     <td>
                         <button class="btn-sm" style="background:#2980b9;" onclick="reviewDokumen('${g.idNasabah}')">👁️ Review Dokumen</button>
                     </td>
@@ -602,25 +592,6 @@
         link.href = URL.createObjectURL(blob);
         link.setAttribute("download", `Laporan_Cicilan_Emas_Pembeliaset_${new Date().toISOString().split('T')[0]}.csv`);
         document.body.appendChild(link); link.click(); document.body.removeChild(link);
-    }
-
-    function eksporBackupJSON() {
-        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify({ nasabah: nasabahList, dokumen: dokumenList, kas: kasTerkumpul }));
-        const link = document.createElement("a"); link.href = dataStr; link.download = `Backup_Cicilan_Emas_${new Date().toISOString().split('T')[0]}.json`; link.click();
-    }
-
-    function imporBackupJSON(event) {
-        const fileReader = new FileReader();
-        fileReader.onload = function(e) {
-            try {
-                const parsedData = JSON.parse(e.target.result);
-                if (parsedData.nasabah && parsedData.dokumen) {
-                    nasabahList = parsedData.nasabah; dokumenList = parsedData.dokumen; kasTerkumpul = parsedData.kas || 0;
-                    tampilkanDashboard(); alert("Data berhasil dipulihkan!");
-                }
-            } catch (err) { alert("Gagal membaca berkas JSON."); }
-        };
-        fileReader.readAsText(event.target.files[0]);
     }
 
     window.onload = muatDataCloud;
