@@ -182,6 +182,7 @@
         </div>
     </div>
 
+    <!-- Tabel Monitoring Peserta -->
     <div class="card" style="margin-bottom: 25px;">
         <h2>📋 Monitoring Peserta & Status Cicilan</h2>
         <div style="overflow-x: auto;">
@@ -194,6 +195,7 @@
         </div>
     </div>
 
+    <!-- Tabel Rincian Jadwal Cicilan -->
     <div class="card" id="boxJadwal" style="margin-bottom: 25px; display:none;">
         <h2 id="judulJadwal">📅 Rincian Jadwal Bulan Iuran Kedepan</h2>
         <div style="overflow-x: auto;">
@@ -206,14 +208,28 @@
         </div>
     </div>
 
-    <div class="card">
-        <h2>📂 Arsip Dokumen Akad Digital</h2>
+    <!-- Tabel Kelompok Arsip Dokumen -->
+    <div class="card" style="margin-bottom: 25px;">
+        <h2>📂 Arsip Dokumen Akad Digital (Dikelompokkan)</h2>
         <div style="overflow-x: auto;">
             <table>
                 <thead>
-                    <tr><th>Nama Peserta</th><th>Nama Berkas Dokumen</th><th>Aksi Data</th></tr>
+                    <tr><th>Nama Peserta</th><th>Jumlah Dokumen Tersimpan</th><th>Aksi Data</th></tr>
                 </thead>
-                <tbody id="tabelDokumen"></tbody>
+                <tbody id="tabelGroupDokumen"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Tabel Rincian Berkas Dokumen (Akan Muncul Saat Klik Review Dokumen) -->
+    <div class="card" id="boxReviewDokumen" style="margin-bottom: 25px; display:none;">
+        <h2 id="judulReviewDokumen">📁 Daftar Berkas Dokumen Digital</h2>
+        <div style="overflow-x: auto;">
+            <table>
+                <thead>
+                    <tr><th>Nama Berkas Dokumen</th><th>Aksi Unduh / Hapus</th></tr>
+                </thead>
+                <tbody id="tabelDetailDokumen"></tbody>
             </table>
         </div>
     </div>
@@ -379,7 +395,6 @@
 
         tutupModal('modalEditNasabah');
 
-        // Kirim perintah edit langsung ke Apps Script Cloud
         kirimKeCloud({
             action: "editFull",
             id: id,
@@ -433,11 +448,12 @@
         reader.readAsDataURL(file);
     }
 
-    function hapusDokumen(idDoc) {
+    function hapusDokumen(idDoc, idNasabah) {
         if(confirm('Yakin ingin menghapus dokumen ini?')) {
             dokumenList = dokumenList.filter(d => d.idDoc !== idDoc);
             localStorage.setItem('flatEmasDokumen', JSON.stringify(dokumenList));
             tampilkanDashboard();
+            if(idNasabah) reviewDokumen(idNasabah);
         }
     }
 
@@ -471,6 +487,39 @@
         }).join('');
     }
 
+    // FUNGSI BARU: Review Dokumen Per Peserta
+    function reviewDokumen(idNasabah) {
+        const docs = dokumenList.filter(d => d.idNasabah == idNasabah);
+        const nasabah = nasabahList.find(n => n.id == idNasabah);
+        const nama = nasabah ? nasabah.nama : (docs.length > 0 ? docs[0].namaNasabah : 'Peserta');
+
+        const boxReview = document.getElementById('boxReviewDokumen');
+        const judul = document.getElementById('judulReviewDokumen');
+        const tbody = document.getElementById('tabelDetailDokumen');
+
+        boxReview.style.display = 'block';
+        judul.innerText = `📁 Daftar Berkas Dokumen Digital - ${nama}`;
+
+        if(docs.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="2" style="text-align:center; color:#999;">Belum ada dokumen yang diunggah untuk peserta ini.</td></tr>`;
+            return;
+        }
+
+        tbody.innerHTML = docs.map(d => `
+            <tr>
+                <td><b>${d.namaFile}</b></td>
+                <td>
+                    <div class="action-buttons">
+                        <a href="${d.dataUrl}" download="${d.namaFile}"><button class="btn-sm">⬇️ Unduh</button></a>
+                        <button class="btn-sm btn-del" onclick="hapusDokumen(${d.idDoc}, '${idNasabah}')">🗑️ Hapus</button>
+                    </div>
+                </td>
+            </tr>
+        `).join('');
+
+        boxReview.scrollIntoView({ behavior: 'smooth' });
+    }
+
     function tampilkanDashboard() {
         const today = new Date().toISOString().split('T')[0];
         let totalPiutang = 0; let menunggakCount = 0;
@@ -501,18 +550,37 @@
             </tr>`;
         }).join('');
 
-        document.getElementById('tabelDokumen').innerHTML = dokumenList.map(d => 
-            `<tr>
-                <td><b>${d.namaNasabah}</b></td>
-                <td>${d.namaFile}</td>
-                <td>
-                    <div class="action-buttons">
-                        <a href="${d.dataUrl}" download="${d.namaFile}"><button class="btn-sm">⬇️ Unduh</button></a>
-                        <button class="btn-sm btn-del" onclick="hapusDokumen(${d.idDoc})">🗑️ Hapus</button>
-                    </div>
-                </td>
-            </tr>`
-        ).join('');
+        // LOGIKA BARU: Kelompokkan dokumen berdasarkan ID/Nama Peserta
+        let groupMap = {};
+        
+        // Inisialisasi daftar peserta dari nasabahList
+        nasabahList.forEach(n => {
+            groupMap[n.id] = { idNasabah: n.id, nama: n.nama, count: 0 };
+        });
+
+        // Hitung dokumen yang diunggah
+        dokumenList.forEach(d => {
+            if(!groupMap[d.idNasabah]) {
+                groupMap[d.idNasabah] = { idNasabah: d.idNasabah, nama: d.namaNasabah, count: 0 };
+            }
+            groupMap[d.idNasabah].count += 1;
+        });
+
+        const groups = Object.values(groupMap);
+
+        if(groups.length === 0) {
+            document.getElementById('tabelGroupDokumen').innerHTML = `<tr><td colspan="3" style="text-align:center; color:#999;">Belum ada peserta atau dokumen.</td></tr>`;
+        } else {
+            document.getElementById('tabelGroupDokumen').innerHTML = groups.map(g => `
+                <tr>
+                    <td><b>${g.nama}</b></td>
+                    <td><b>${g.count} Berkas Dokumen</b></td>
+                    <td>
+                        <button class="btn-sm" style="background:#2980b9;" onclick="reviewDokumen('${g.idNasabah}')">👁️ Review Dokumen</button>
+                    </td>
+                </tr>
+            `).join('');
+        }
 
         document.getElementById('statNasabah').innerText = nasabahList.length + ' Peserta';
         document.getElementById('statPiutang').innerText = formatRp(totalPiutang);
