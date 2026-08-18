@@ -25,6 +25,9 @@
         .card { background: #fff; padding: 20px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
         .card h2 { margin-top: 0; color: #2c3e50; font-size: 18px; border-bottom: 2px solid #f0f2f5; padding-bottom: 10px; }
         
+        .reminder-box { background: #fff3cd; border: 1px solid #ffeeba; border-left: 5px solid #ffc107; padding: 15px; border-radius: 10px; margin-bottom: 25px; }
+        .reminder-box h2 { color: #856404; margin-top: 0; font-size: 16px; border-bottom: 1px solid #ffe8a1; padding-bottom: 8px; }
+
         .form-group { margin-bottom: 12px; }
         label { display: block; font-weight: 600; font-size: 13px; margin-bottom: 4px; }
         input, select { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 6px; font-size: 14px; }
@@ -41,6 +44,7 @@
         .btn-group { display: flex; gap: 10px; flex-wrap: wrap; }
         .btn-sec { background: #4a5568; width: auto; }
         .btn-excel { background: #27ae60; width: auto; }
+        .btn-wa { background: #25D366; color: white; width: auto; padding: 5px 10px; font-size: 11px; text-decoration: none; border-radius: 4px; display: inline-block; font-weight: bold; }
         
         table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; }
         th, td { border: 1px solid #e2e8f0; padding: 10px; text-align: left; }
@@ -54,6 +58,7 @@
         .badge-lunas { background: #c6f6d5; color: #22543d; }
         .badge-mencicil { background: #feebc8; color: #744210; }
         .badge-jt { background: #fed7d7; color: #742a2a; }
+        .badge-h7 { background: #fff3cd; color: #856404; border: 1px solid #ffeeba; }
 
         @media (max-width: 768px) { .grid { grid-template-columns: 1fr; } .watermark { width: 160px; } }
     </style>
@@ -72,6 +77,7 @@
     </svg>
 </div>
 
+<!-- Modal Dialog Edit Peserta -->
 <div class="modal" id="modalEditNasabah">
     <div class="modal-content">
         <h3>✏️ Edit / Perbaiki Data Peserta</h3>
@@ -106,6 +112,7 @@
         </div>
     </div>
 
+    <!-- Metrik Statistik -->
     <div class="stats-grid">
         <div class="card-stat">
             <h3>Total Peserta Cicilan</h3>
@@ -122,6 +129,19 @@
         <div class="card-stat" style="border-left-color: #e74c3c;">
             <h3>Tagihan Bulan Ini Menunggak</h3>
             <div class="value" id="statMacet">0 Tagihan</div>
+        </div>
+    </div>
+
+    <!-- FITUR BARU: PENGINGAT JATUH TEMPO H-7 -->
+    <div class="reminder-box" id="boxPengingat" style="display:none;">
+        <h2>🔔 Pengingat Jatuh Tempo Cicilan (H-7 s/d Hari Ini)</h2>
+        <div style="overflow-x: auto;">
+            <table>
+                <thead>
+                    <tr><th>Nama Peserta</th><th>Tgl Jatuh Tempo</th><th>Nominal Iuran</th><th>Status Tagihan</th><th>Kirim Pengingat</th></tr>
+                </thead>
+                <tbody id="tabelPengingat"></tbody>
+            </table>
         </div>
     </div>
 
@@ -225,7 +245,6 @@
 </div>
 
 <script>
-    // MASUKKAN URL HASIL DEPLOY APPS SCRIPT BARU DI SINI:
     const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzGeqQuDqwdXfZJSE_T0AMxdrkS0jksRLtsL6K6CB-Mz2Z-7X4C-7aAk013LhRXSbmZ/exec";
 
     let nasabahList = [];
@@ -262,7 +281,7 @@
 
                 if (Array.isArray(dataNasabah)) {
                     nasabahList = dataNasabah.map(row => {
-                        let id = row[0];
+                        let id = String(row[0]);
                         let nama = row[1];
                         let berat = row[2];
                         let total = parseFloat(row[3]) || 0;
@@ -294,6 +313,7 @@
                     statusEl.style.background = "#27ae60";
                 }
                 tampilkanDashboard();
+                cekPengingatH7();
             })
             .catch(err => {
                 console.error("Gagal koneksi cloud:", err);
@@ -324,6 +344,57 @@
         });
     }
 
+    // LOGIKA FITUR BARU: PENGINGAT H-7 JATUH TEMPO
+    function cekPengingatH7() {
+        const today = new Date();
+        const next7Days = new Date();
+        next7Days.setDate(today.getDate() + 7);
+
+        const todayStr = today.toISOString().split('T')[0];
+        const next7DaysStr = next7Days.toISOString().split('T')[0];
+
+        let listPengingat = [];
+
+        nasabahList.forEach(n => {
+            if (n.sisa > 0) {
+                let tagihanBerikutnya = n.jadwal.find(j => j.status === 'Belum Lunas');
+                if (tagihanBerikutnya) {
+                    let tglJT = tagihanBerikutnya.tglJatuhTempo;
+                    if (tglJT <= next7DaysStr) {
+                        let statusTagihan = tglJT < todayStr ? 'MENUNGGAK' : (tglJT === todayStr ? 'JATUH TEMPO HARI INI' : 'JATUH TEMPO (H-7)');
+                        listPengingat.push({
+                            nama: n.nama,
+                            tglJT: tglJT,
+                            nominal: tagihanBerikutnya.nominal,
+                            status: statusTagihan
+                        });
+                    }
+                }
+            }
+        });
+
+        const box = document.getElementById('boxPengingat');
+        const tbody = document.getElementById('tabelPengingat');
+
+        if (listPengingat.length > 0) {
+            box.style.display = 'block';
+            tbody.innerHTML = listPengingat.map(p => {
+                let badge = p.status === 'MENUNGGAK' ? '<span class="badge badge-jt">MENUNGGAK</span>' : '<span class="badge badge-h7">SEGERA BAYAR</span>';
+                let pesanWA = encodeURIComponent(`Halo Bpk/Ibu ${p.nama},\n\nPengingat dari Pembeliaset.id: Cicilan emas Anda sebesar ${formatRp(p.nominal)} akan jatuh tempo pada ${p.tglJT}.\nMohon dapat melakukan pembayaran tepat waktu. Terima kasih!`);
+                
+                return `<tr>
+                    <td><b>${p.nama}</b></td>
+                    <td>${p.tglJT}</td>
+                    <td><b style="color:#d4af37;">${formatRp(p.nominal)}</b></td>
+                    <td>${badge}</td>
+                    <td><a href="https://wa.me/?text=${pesanWA}" target="_blank" class="btn-wa">💬 Kirim WA</a></td>
+                </tr>`;
+            }).join('');
+        } else {
+            box.style.display = 'none';
+        }
+    }
+
     function tambahNasabah() {
         const nama = document.getElementById('nama').value;
         const berat = document.getElementById('berat').value;
@@ -336,7 +407,7 @@
 
         const sisaAwal = total - dp;
         const iuranFlat = Math.round(sisaAwal / tenor);
-        const newId = Date.now();
+        const newId = String(Date.now());
 
         const payload = {
             action: "tambah",
@@ -360,7 +431,7 @@
     function unggahDokumenCloud() {
         const id = document.getElementById('selectNasabah').value;
         const fileInput = document.getElementById('fileDokumen');
-        const nasabah = nasabahList.find(n => n.id == id);
+        const nasabah = nasabahList.find(n => n.id === String(id));
 
         if (!nasabah || !fileInput.files[0]) return alert('Pilih nama peserta dan berkas!');
         const file = fileInput.files[0];
@@ -370,7 +441,7 @@
         reader.onload = function(e) {
             kirimKeCloud({
                 action: "uploadDokumen",
-                idNasabah: nasabah.id,
+                idNasabah: String(nasabah.id),
                 namaNasabah: nasabah.nama,
                 fileName: file.name,
                 fileData: e.target.result
@@ -382,8 +453,8 @@
     }
 
     function reviewDokumen(idNasabah) {
-        const docs = dokumenCloudList.filter(d => d[1] == idNasabah);
-        const nasabah = nasabahList.find(n => n.id == idNasabah);
+        const docs = dokumenCloudList.filter(d => String(d[1]) === String(idNasabah));
+        const nasabah = nasabahList.find(n => String(n.id) === String(idNasabah));
         const nama = nasabah ? nasabah.nama : (docs.length > 0 ? docs[0][2] : 'Peserta');
 
         const boxReview = document.getElementById('boxReviewDokumen');
@@ -411,7 +482,7 @@
     }
 
     function bukaEditNasabah(id) {
-        const n = nasabahList.find(x => x.id == id);
+        const n = nasabahList.find(x => String(x.id) === String(id));
         if(!n) return;
         document.getElementById('editId').value = n.id;
         document.getElementById('editNama').value = n.nama;
@@ -423,8 +494,8 @@
     }
 
     function simpanEditNasabah() {
-        const id = document.getElementById('editId').value;
-        const n = nasabahList.find(x => x.id == id);
+        const id = String(document.getElementById('editId').value);
+        const n = nasabahList.find(x => String(x.id) === id);
         
         const bNama = document.getElementById('editNama').value;
         const bBerat = document.getElementById('editBerat').value;
@@ -455,9 +526,9 @@
     }
 
     function bayarCicilan() {
-        const id = document.getElementById('selectNasabah').value;
+        const id = String(document.getElementById('selectNasabah').value);
         const bayar = parseFloat(document.getElementById('bayar').value);
-        const nasabah = nasabahList.find(n => n.id == id);
+        const nasabah = nasabahList.find(n => String(n.id) === id);
 
         if (!nasabah || isNaN(bayar) || bayar <= 0) return alert('Pilih peserta dan masukkan nominal iuran!');
         if (bayar > nasabah.sisa) return alert('Nominal pembayaran melebihi sisa tagihan!');
@@ -470,14 +541,14 @@
 
     function hapusNasabah(id) {
         if(!confirm('⚠️ Yakin ingin menghapus peserta ini dari Cloud Google Sheets?')) return;
-        kirimKeCloud({ action: "hapus", id: id });
+        kirimKeCloud({ action: "hapus", id: String(id) });
         document.getElementById('boxJadwal').style.display = 'none';
     }
 
     function pilihNasabah() {
-        const id = document.getElementById('selectNasabah').value;
+        const id = String(document.getElementById('selectNasabah').value);
         const infoBox = document.getElementById('infoIuranBox');
-        const nasabah = nasabahList.find(n => n.id == id);
+        const nasabah = nasabahList.find(n => String(n.id) === id);
 
         if (nasabah) {
             infoBox.style.display = 'block';
@@ -492,7 +563,7 @@
     }
 
     function lihatJadwal(id) {
-        const nasabah = nasabahList.find(n => n.id == id);
+        const nasabah = nasabahList.find(n => String(n.id) === String(id));
         if (!nasabah) return;
         const today = new Date().toISOString().split('T')[0];
         document.getElementById('boxJadwal').style.display = 'block';
@@ -514,7 +585,7 @@
 
         document.getElementById('tabelNasabah').innerHTML = nasabahList.map(n => {
             totalPiutang += n.sisa;
-            sel.innerHTML += `<option value="${n.id}" ${selectedVal == n.id ? 'selected' : ''}>${n.nama}</option>`;
+            sel.innerHTML += `<option value="${n.id}" ${String(selectedVal) === String(n.id) ? 'selected' : ''}>${n.nama}</option>`;
 
             let tenor = n.tenor || 12;
             let bulanLunasCount = n.jadwal.filter(j => j.status === 'Lunas').length;
@@ -536,11 +607,11 @@
 
         let groupMap = {};
         nasabahList.forEach(n => {
-            groupMap[n.id] = { idNasabah: n.id, nama: n.nama, count: 0 };
+            groupMap[String(n.id)] = { idNasabah: String(n.id), nama: n.nama, count: 0 };
         });
 
         dokumenCloudList.forEach(d => {
-            let idNas = d[1];
+            let idNas = String(d[1]);
             if(!groupMap[idNas]) {
                 groupMap[idNas] = { idNasabah: idNas, nama: d[2], count: 0 };
             }
