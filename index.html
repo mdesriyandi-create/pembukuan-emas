@@ -50,9 +50,9 @@
         th, td { border: 1px solid #e2e8f0; padding: 10px; text-align: left; }
         th { background: #f7fafc; color: #4a5568; font-weight: 600; }
         .action-buttons { display: flex; gap: 5px; flex-wrap: wrap; }
-        .btn-sm { padding: 5px 10px; font-size: 11px; width: auto; border-radius: 4px; }
-        .btn-edit { background: #2980b9; } 
-        .btn-del { background: #e74c3c; }
+        .btn-sm { padding: 5px 10px; font-size: 11px; width: auto; border-radius: 4px; text-decoration: none; display: inline-block; }
+        .btn-edit { background: #2980b9; color: white; border: none; } 
+        .btn-del { background: #e74c3c; color: white; border: none; }
         
         .badge { padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 11px; }
         .badge-lunas { background: #c6f6d5; color: #22543d; }
@@ -103,6 +103,9 @@
     </div>
 </div>
 
+<!-- Modal Hidden Edit Dokumen -->
+<input type="file" id="fileInputEditDoc" style="display:none;" onchange="prosesGantiDokumen(event)">
+
 <div class="container">
     <div class="header">
         <h1>✨ Dashboard Cicilan Emas (Cloud Database)</h1>
@@ -132,7 +135,7 @@
         </div>
     </div>
 
-    <!-- FITUR BARU: PENGINGAT JATUH TEMPO H-7 -->
+    <!-- FITUR PENGINGAT JATUH TEMPO H-7 -->
     <div class="reminder-box" id="boxPengingat" style="display:none;">
         <h2>🔔 Pengingat Jatuh Tempo Cicilan (H-7 s/d Hari Ini)</h2>
         <div style="overflow-x: auto;">
@@ -236,7 +239,7 @@
         <div style="overflow-x: auto;">
             <table>
                 <thead>
-                    <tr><th>Nama Berkas Dokumen</th><th>Buka Berkas di Google Drive</th></tr>
+                    <tr><th>Nama Berkas Dokumen</th><th>Buka Berkas</th><th>Aksi Data Dokumen</th></tr>
                 </thead>
                 <tbody id="tabelDetailDokumen"></tbody>
             </table>
@@ -245,11 +248,15 @@
 </div>
 
 <script>
-    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyh6vS6-y1nLdcefNFGhy8_ldDkcTjfZI_7l12Anm4WYY0807SUC0jAvysIs2d_kSx3/exec";
+    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwBT1VhafvhuINPBws3f0aFfBFjNj2L6l3lIQ5_9t0bfcg3IMkFrUdEDQAO08zBRpDF/exec";
 
     let nasabahList = [];
     let dokumenCloudList = [];
     let kasTerkumpul = 0;
+
+    let targetEditDocId = null;
+    let targetEditNasabahId = null;
+    let targetEditNasabahNama = "";
 
     setInterval(() => {
         const clockEl = document.getElementById('clock');
@@ -344,7 +351,6 @@
         });
     }
 
-    // LOGIKA FITUR BARU: PENGINGAT H-7 JATUH TEMPO
     function cekPengingatH7() {
         const today = new Date();
         const next7Days = new Date();
@@ -465,7 +471,7 @@
         judul.innerText = `📁 Daftar Berkas Dokumen Cloud Drive - ${nama}`;
 
         if(docs.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="2" style="text-align:center; color:#999;">Belum ada dokumen cloud yang diunggah untuk peserta ini.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="3" style="text-align:center; color:#999;">Belum ada dokumen cloud yang diunggah untuk peserta ini.</td></tr>`;
             return;
         }
 
@@ -473,12 +479,55 @@
             <tr>
                 <td><b>${d[3]}</b></td>
                 <td>
-                    <a href="${d[4]}" target="_blank"><button class="btn-sm" style="background:#27ae60;">🔗 Buka / Unduh di Google Drive</button></a>
+                    <a href="${d[4]}" target="_blank" class="btn-sm" style="background:#27ae60; color:white;">🔗 Buka / Unduh</a>
+                </td>
+                <td>
+                    <div class="action-buttons">
+                        <button class="btn-sm btn-edit" onclick="mintaGantiDokumen('${d[0]}', '${d[1]}', '${d[2]}')">✏️ Edit / Ganti</button>
+                        <button class="btn-sm btn-del" onclick="hapusDokumenCloud('${d[0]}', '${d[1]}')">🗑️ Hapus</button>
+                    </div>
                 </td>
             </tr>
         `).join('');
 
         boxReview.scrollIntoView({ behavior: 'smooth' });
+    }
+
+    function hapusDokumenCloud(idDoc, idNasabah) {
+        if(!confirm('⚠️ Yakin ingin menghapus dokumen ini dari Cloud?')) return;
+        kirimKeCloud({ action: "hapusDokumen", idDoc: idDoc });
+        setTimeout(() => reviewDokumen(idNasabah), 3000);
+    }
+
+    function mintaGantiDokumen(idDoc, idNasabah, namaNasabah) {
+        targetEditDocId = idDoc;
+        targetEditNasabahId = idNasabah;
+        targetEditNasabahNama = namaNasabah;
+        document.getElementById('fileInputEditDoc').click();
+    }
+
+    function prosesGantiDokumen(event) {
+        const file = event.target.files[0];
+        if(!file) return;
+        if (file.size > 2 * 1024 * 1024) return alert('Ukuran file maksimal 2MB!');
+
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            kirimKeCloud({ action: "hapusDokumen", idDoc: targetEditDocId });
+            setTimeout(() => {
+                kirimKeCloud({
+                    action: "uploadDokumen",
+                    idDoc: targetEditDocId,
+                    idNasabah: String(targetEditNasabahId),
+                    namaNasabah: targetEditNasabahNama,
+                    fileName: file.name,
+                    fileData: e.target.result
+                });
+                alert('Mengganti berkas dokumen di Cloud Drive...');
+                setTimeout(() => reviewDokumen(targetEditNasabahId), 3000);
+            }, 1000);
+        };
+        reader.readAsDataURL(file);
     }
 
     function bukaEditNasabah(id) {
@@ -628,7 +677,7 @@
                     <td><b>${g.nama}</b></td>
                     <td><b>${g.count} Berkas Dokumen Cloud</b></td>
                     <td>
-                        <button class="btn-sm" style="background:#2980b9;" onclick="reviewDokumen('${g.idNasabah}')">👁️ Review Dokumen</button>
+                        <button class="btn-sm" style="background:#2980b9; color:white;" onclick="reviewDokumen('${g.idNasabah}')">👁️ Review Dokumen</button>
                     </td>
                 </tr>
             `).join('');
