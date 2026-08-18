@@ -72,7 +72,6 @@
     </svg>
 </div>
 
-<!-- Modal Dialog Edit Peserta -->
 <div class="modal" id="modalEditNasabah">
     <div class="modal-content">
         <h3>✏️ Edit / Perbaiki Data Peserta</h3>
@@ -107,7 +106,6 @@
         </div>
     </div>
 
-    <!-- Metrik Statistik -->
     <div class="stats-grid">
         <div class="card-stat">
             <h3>Total Peserta Cicilan</h3>
@@ -127,15 +125,13 @@
         </div>
     </div>
 
-    <!-- Menu Tarik Data -->
     <div class="card tarik-data-box">
-        <h2 style="border: none; padding: 0; margin-bottom: 10px;">📥 Menu Tarik Data & Cadangan System</h2>
+        <h2 style="border: none; padding: 0; margin-bottom: 10px;">📥 Menu Tarik Data</h2>
         <div class="btn-group">
             <button class="btn-excel" onclick="eksporExcel()">📊 Tarik Laporan Cicilan ke Excel (Rapi)</button>
         </div>
     </div>
 
-    <!-- Form Operasional Grid -->
     <div class="grid">
         <div class="card">
             <h2>➕ Kontrak Cicilan Baru</h2>
@@ -172,14 +168,13 @@
             <hr style="margin: 20px 0; border: none; border-top: 1px solid #e2e8f0;">
 
             <div class="form-group">
-                <label>Upload File Akad / KTP / Struk Transfer (Max 2MB - Cloud Drive)</label>
+                <label>Upload File Akad / KTP / Struk (Max 2MB - Cloud Drive)</label>
                 <input type="file" id="fileDokumen" accept="image/*,application/pdf">
             </div>
             <button onclick="unggahDokumenCloud()" style="background: #2980b9;">Unggah Dokumen Ke Cloud Drive</button>
         </div>
     </div>
 
-    <!-- Tabel Monitoring Peserta -->
     <div class="card" style="margin-bottom: 25px;">
         <h2>📋 Monitoring Peserta & Status Cicilan</h2>
         <div style="overflow-x: auto;">
@@ -192,7 +187,6 @@
         </div>
     </div>
 
-    <!-- Tabel Rincian Jadwal Cicilan -->
     <div class="card" id="boxJadwal" style="margin-bottom: 25px; display:none;">
         <h2 id="judulJadwal">📅 Rincian Jadwal Bulan Iuran Kedepan</h2>
         <div style="overflow-x: auto;">
@@ -205,7 +199,6 @@
         </div>
     </div>
 
-    <!-- Tabel Kelompok Arsip Dokumen Cloud -->
     <div class="card" style="margin-bottom: 25px;">
         <h2>📂 Arsip Dokumen Akad Digital (Google Drive Cloud)</h2>
         <div style="overflow-x: auto;">
@@ -218,7 +211,6 @@
         </div>
     </div>
 
-    <!-- Tabel Rincian Berkas Dokumen -->
     <div class="card" id="boxReviewDokumen" style="margin-bottom: 25px; display:none;">
         <h2 id="judulReviewDokumen">📁 Daftar Berkas Dokumen Digital (Google Drive)</h2>
         <div style="overflow-x: auto;">
@@ -233,8 +225,8 @@
 </div>
 
 <script>
-    // PASTA_URL_DEPLOY_APPS_SCRIPT_TERBARU_ANDA_DI_SINI
-    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbz52ytqOnA4vRbn74x8TQ_iG7sNJW0du8xh8Bfh4MHi1AyN2l6RNZhUfAyKEdhgPl6V/exec";
+    // MASUKKAN URL HASIL DEPLOY APPS SCRIPT BARU DI SINI:
+    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzGeqQuDqwdXfZJSE_T0AMxdrkS0jksRLtsL6K6CB-Mz2Z-7X4C-7aAk013LhRXSbmZ/exec";
 
     let nasabahList = [];
     let dokumenCloudList = [];
@@ -325,7 +317,7 @@
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload)
         }).then(() => {
-            setTimeout(muatDataCloud, 2000);
+            setTimeout(muatDataCloud, 2500);
         }).catch(err => {
             alert("Gagal mengirim ke Cloud!");
             console.error(err);
@@ -542,7 +534,6 @@
             </tr>`;
         }).join('');
 
-        // Kelompokkan dokumen Cloud Drive per peserta
         let groupMap = {};
         nasabahList.forEach(n => {
             groupMap[n.id] = { idNasabah: n.id, nama: n.nama, count: 0 };
