@@ -316,21 +316,87 @@
         cekPengingatH7();
     }
 
+    let retryCount = 0;
+
+    function handleCloudData(resData) {
+        retryCount = 0; // Reset counter saat koneksi berhasil
+        const statusEl = document.getElementById('statusCloud');
+        kasTerkumpul = 0;
+        let dataNasabah = resData.nasabah || [];
+        dokumenCloudList = resData.dokumen || [];
+
+        if (Array.isArray(dataNasabah)) {
+            nasabahList = dataNasabah.map(row => {
+                let id = String(row[0]).trim();
+                let nama = String(row[1] || '').trim();
+                let berat = row[2];
+                let total = parseFloat(row[3]) || 0;
+                let dp = parseFloat(row[4]) || 0;
+                let tenor = parseInt(row[5]) || 12;
+                let iuranFlat = parseFloat(row[6]) || 0;
+                let sisa = parseFloat(row[7]) || 0;
+                let tglAwal = row[8] ? new Date(row[8]).toISOString().split('T')[0] : '';
+
+                let totalTerbayar = (total - dp) - sisa;
+                kasTerkumpul += (dp + totalTerbayar);
+
+                let jadwal = [];
+                let sisaDana = totalTerbayar;
+                for (let i = 0; i < tenor; i++) {
+                    let st = 'Belum Lunas';
+                    if (sisaDana >= iuranFlat) {
+                        st = 'Lunas';
+                        sisaDana -= iuranFlat;
+                    }
+                    jadwal.push({ bulan: i + 1, tglJatuhTempo: hitungTglBulan(tglAwal, i), nominal: iuranFlat, status: st });
+                }
+
+                return { id, nama, berat, total, dp, tenor, iuranFlat, sisa, tglAwal, jadwal };
+            });
+        }
+
+        if (statusEl) {
+            statusEl.innerText = "⚡ Cloud Connected";
+            statusEl.style.background = "#27ae60";
+        }
+        tampilkanDashboard();
+        cekPengingatH7();
+    }
+
     function muatDataCloud() {
         const statusEl = document.getElementById('statusCloud');
-        if (statusEl) {
+        if (statusEl && retryCount === 0) {
             statusEl.innerText = "🔄 Memuat Data Cloud...";
             statusEl.style.background = "#f39c12";
         }
 
+        // Hapus tag script lama agar tidak menumpuk di memori
+        const oldScript = document.getElementById('jsonp_cloud_script');
+        if (oldScript) oldScript.remove();
+
         const script = document.createElement('script');
-        script.src = SCRIPT_URL + "?callback=handleCloudData";
+        script.id = 'jsonp_cloud_script';
+        // Menggunakan parameter timestamp (?t=...) agar bebas dari cache browser
+        script.src = SCRIPT_URL + "?callback=handleCloudData&t=" + Date.now();
+
+        // PENANGANAN OTOMATIS COBA UANG JIKA SERVER GOOGLE SLOW-RESPONSE
         script.onerror = function() {
-            if (statusEl) {
-                statusEl.innerText = "❌ Disconnected";
-                statusEl.style.background = "#e74c3c";
+            if (retryCount < 3) {
+                retryCount++;
+                if (statusEl) {
+                    statusEl.innerText = `⏳ Menghubungkan ulang (${retryCount}/3)...`;
+                    statusEl.style.background = "#e67e22";
+                }
+                setTimeout(muatDataCloud, 2000); // Mencoba ulang otomatis setiap 2 detik
+            } else {
+                if (statusEl) {
+                    statusEl.innerText = "❌ Server Sibuk (Silakan Refresh)";
+                    statusEl.style.background = "#e74c3c";
+                }
+                retryCount = 0;
             }
         };
+
         document.body.appendChild(script);
     }
 
