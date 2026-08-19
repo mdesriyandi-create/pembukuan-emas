@@ -272,7 +272,6 @@
         return d.toISOString().split('T')[0]; 
     }
 
-    // HANDLER PENERIMA DATA JSONP (MENGHINDARI BLOKIR CORS)
     function handleCloudData(resData) {
         const statusEl = document.getElementById('statusCloud');
         kasTerkumpul = 0;
@@ -353,6 +352,66 @@
             alert("Gagal mengirim ke Cloud!");
             console.error(err);
         });
+    }
+
+    function unggahDokumenCloud() {
+        const id = document.getElementById('selectNasabah').value;
+        const fileInput = document.getElementById('fileDokumen');
+        const nasabah = nasabahList.find(n => String(n.id) === String(id));
+
+        if (!nasabah) return alert('Silakan pilih nama peserta terlebih dahulu!');
+        if (!fileInput.files[0]) return alert('Silakan pilih berkas dokumen yang akan diunggah!');
+
+        const file = fileInput.files[0];
+        if (file.size > 2 * 1024 * 1024) {
+            return alert('⚠️ Ukuran file terlalu besar! Maksimal 2 MB. Silakan kompres foto/PDF Anda.');
+        }
+
+        const statusEl = document.getElementById('statusCloud');
+        if (statusEl) {
+            statusEl.innerText = "⏳ Mengunggah Dokumen ke Cloud Drive...";
+            statusEl.style.background = "#3498db";
+        }
+
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const payload = {
+                action: "uploadDokumen",
+                idNasabah: String(nasabah.id),
+                namaNasabah: nasabah.nama,
+                fileName: file.name,
+                fileData: e.target.result
+            };
+
+            const iframe = document.createElement('iframe');
+            iframe.name = 'hidden_iframe_upload';
+            iframe.style.display = 'none';
+            document.body.appendChild(iframe);
+
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = SCRIPT_URL;
+            form.target = 'hidden_iframe_upload';
+
+            const inputPayload = document.createElement('input');
+            inputPayload.type = 'hidden';
+            inputPayload.name = 'postData';
+            inputPayload.value = JSON.stringify(payload);
+            form.appendChild(inputPayload);
+
+            document.body.appendChild(form);
+            form.submit();
+
+            alert(`✅ Berkas "${file.name}" berhasil dikirim! Menunggu sinkronisasi Cloud...`);
+            fileInput.value = '';
+
+            setTimeout(() => {
+                document.body.removeChild(form);
+                document.body.removeChild(iframe);
+                muatDataCloud();
+            }, 3500);
+        };
+        reader.readAsDataURL(file);
     }
 
     function cekPengingatH7() {
@@ -438,30 +497,6 @@
         kirimKeCloud(payload);
     }
 
-    function unggahDokumenCloud() {
-        const id = document.getElementById('selectNasabah').value;
-        const fileInput = document.getElementById('fileDokumen');
-        const nasabah = nasabahList.find(n => String(n.id) === String(id));
-
-        if (!nasabah || !fileInput.files[0]) return alert('Pilih nama peserta dan berkas!');
-        const file = fileInput.files[0];
-        if (file.size > 2 * 1024 * 1024) return alert('Ukuran file maksimal 2MB!');
-
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            kirimKeCloud({
-                action: "uploadDokumen",
-                idNasabah: String(nasabah.id),
-                namaNasabah: nasabah.nama,
-                fileName: file.name,
-                fileData: e.target.result
-            });
-            fileInput.value = '';
-            alert('Mengunggah dokumen ke Google Drive Cloud...');
-        };
-        reader.readAsDataURL(file);
-    }
-
     function reviewDokumen(idNasabah) {
         const docs = dokumenCloudList.filter(d => String(d[1]) === String(idNasabah));
         const nasabah = nasabahList.find(n => String(n.id) === String(idNasabah));
@@ -519,16 +554,40 @@
         reader.onload = function(e) {
             kirimKeCloud({ action: "hapusDokumen", idDoc: targetEditDocId });
             setTimeout(() => {
-                kirimKeCloud({
+                const payload = {
                     action: "uploadDokumen",
                     idDoc: targetEditDocId,
                     idNasabah: String(targetEditNasabahId),
                     namaNasabah: targetEditNasabahNama,
                     fileName: file.name,
                     fileData: e.target.result
-                });
+                };
+
+                const iframe = document.createElement('iframe');
+                iframe.name = 'hidden_iframe_upload';
+                iframe.style.display = 'none';
+                document.body.appendChild(iframe);
+
+                const form = document.createElement('form');
+                form.method = 'POST';
+                form.action = SCRIPT_URL;
+                form.target = 'hidden_iframe_upload';
+
+                const inputPayload = document.createElement('input');
+                inputPayload.type = 'hidden';
+                inputPayload.name = 'postData';
+                inputPayload.value = JSON.stringify(payload);
+                form.appendChild(inputPayload);
+
+                document.body.appendChild(form);
+                form.submit();
+
                 alert('Mengganti berkas dokumen di Cloud Drive...');
-                setTimeout(() => reviewDokumen(targetEditNasabahId), 3000);
+                setTimeout(() => {
+                    document.body.removeChild(form);
+                    document.body.removeChild(iframe);
+                    reviewDokumen(targetEditNasabahId);
+                }, 3500);
             }, 1000);
         };
         reader.readAsDataURL(file);
